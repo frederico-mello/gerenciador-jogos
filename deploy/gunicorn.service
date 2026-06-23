@@ -1,0 +1,20 @@
+[Unit]
+Description=Gerenciador de Jogos — Gunicorn
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/gerenciador-jogos
+EnvironmentFile=/opt/gerenciador-jogos/.env
+
+ExecStart=/opt/gerenciador-jogos/venv/bin/gunicorn -c gunicorn.conf.py wsgi:app
+
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
