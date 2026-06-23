@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Usuários — {{ super() }}{% endblock %}
+{% block content %}
+<h1>Usuários</h1>
+
+<div class="list-header">
+  <form class="filter-form" method="get" action="{{ url_for('games.admin_users') }}">
+    <select name="role" onchange="this.form.submit()">
+      <option value="">Todos os papéis</option>
+      <option value="admin_sistema" {% if role == 'admin_sistema' %}selected{% endif %}>Admin Sistema</option>
+      <option value="admin_jogos" {% if role == 'admin_jogos' %}selected{% endif %}>Admin Jogos</option>
+      <option value="usuario" {% if role == 'usuario' %}selected{% endif %}>Usuário</option>
+    </select>
+    <button type="submit">Filtrar</button>
+  </form>
+  <div class="list-actions">
+    <a class="btn btn-primary" href="{{ url_for('games.admin_users_criar') }}">Novo usuário</a>
+  </div>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Email</th>
+      <th>Papel</th>
+      <th>Escola</th>
+      <th>Ativo</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.nome }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.role }}</td>
+      <td>{{ u.escola_id or '—' }}</td>
+      <td>{{ 'Sim' if u.ativo else 'Não' }}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="{{ url_for('games.admin_users_editar', user_id=u.id) }}">Editar</a>
+        <form method="post" action="{{ url_for('games.admin_users_role', user_id=u.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <select name="role" onchange="this.form.submit()">
+            <option value="usuario" {% if u.role == 'usuario' %}selected{% endif %}>Usuário</option>
+            <option value="admin_jogos" {% if u.role == 'admin_jogos' %}selected{% endif %}>Admin Jogos</option>
+            <option value="admin_sistema" {% if u.role == 'admin_sistema' %}selected{% endif %}>Admin Sistema</option>
+          </select>
+        </form>
+        {% if u.ativo %}
+        <form method="post" action="{{ url_for('games.admin_users_inativar', user_id=u.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-danger" type="submit">Inativar</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('games.admin_users_reativar', user_id=u.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm" type="submit">Reativar</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

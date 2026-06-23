@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Escolas — {{ super() }}{% endblock %}
+{% block content %}
+<h1>Escolas</h1>
+
+<div class="toolbar">
+  <form class="filters" method="get" action="{{ url_for('games.admin_schools') }}">
+    <select name="rede" onchange="this.form.submit()">
+      <option value="">Todas as redes</option>
+      <option value="federal" {% if rede == 'federal' %}selected{% endif %}>Federal</option>
+      <option value="estadual" {% if rede == 'estadual' %}selected{% endif %}>Estadual</option>
+      <option value="municipal" {% if rede == 'municipal' %}selected{% endif %}>Municipal</option>
+      <option value="privada" {% if rede == 'privada' %}selected{% endif %}>Privada</option>
+    </select>
+    <input type="search" name="q" placeholder="Buscar por nome…" value="{{ q or '' }}" />
+    <button type="submit">Filtrar</button>
+  </form>
+  <a class="btn btn-primary" href="{{ url_for('games.admin_schools_criar') }}">Nova escola</a>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Rede</th>
+      <th>Código INEP</th>
+      <th>Bairro</th>
+      <th>Ativo</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for school in schools %}
+    <tr>
+      <td>{{ school.nome }}</td>
+      <td>{{ school.rede or '—' }}</td>
+      <td>{{ school.codigo_inep or '—' }}</td>
+      <td>{{ school.bairro or '—' }}</td>
+      <td>{{ 'Sim' if school.ativo else 'Não' }}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="{{ url_for('games.admin_schools_editar', school_id=school.id) }}">Editar</a>
+        {% if school.ativo %}
+        <form method="post" action="{{ url_for('games.admin_schools_inativar', school_id=school.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-danger" type="submit">Inativar</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('games.admin_schools_reativar', school_id=school.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm" type="submit">Reativar</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{% if school %}Editar{% else %}Nova{% endif %} Escola — {{ super() }}{% endblock %}
+{% block content %}
+<h1>{% if school %}Editar escola{% else %}Nova escola{% endif %}</h1>
+
+<form method="post" action="{% if school %}{{ url_for('games.admin_schools_editar', school_id=school.id) }}{% else %}{{ url_for('games.admin_schools_criar') }}{% endif %}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="form-group">
+    <label for="nome">Nome *</label>
+    <input type="text" id="nome" name="nome" value="{{ (form.nome or school.nome) or '' }}" required />
+  </div>
+
+  <div class="form-group">
+    <label for="codigo_inep">Código INEP (opcional)</label>
+    <input type="text" id="codigo_inep" name="codigo_inep" value="{{ (form.codigo_inep or school.codigo_inep) or '' }}" />
+  </div>
+
+  <div class="form-group">
+    <label for="rede">Rede</label>
+    <select id="rede" name="rede">
+      <option value="">—</option>
+      <option value="federal" {% if (form.rede or school.rede) == 'federal' %}selected{% endif %}>Federal</option>
+      <option value="estadual" {% if (form.rede or school.rede) == 'estadual' %}selected{% endif %}>Estadual</option>
+      <option value="municipal" {% if (form.rede or school.rede) == 'municipal' %}selected{% endif %}>Municipal</option>
+      <option value="privada" {% if (form.rede or school.rede) == 'privada' %}selected{% endif %}>Privada</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="endereco">Endereço</label>
+    <input type="text" id="endereco" name="endereco" value="{{ (form.endereco or school.endereco) or '' }}" />
+  </div>
+
+  <div class="form-group">
+    <label for="bairro">Bairro</label>
+    <input type="text" id="bairro" name="bairro" value="{{ (form.bairro or school.bairro) or '' }}" />
+  </div>
+
+  <div class="form-group">
+    <label for="cep">CEP</label>
+    <input type="text" id="cep" name="cep" value="{{ (form.cep or school.cep) or '' }}" />
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Salvar</button>
+    <a class="btn" href="{{ url_for('games.admin_schools') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

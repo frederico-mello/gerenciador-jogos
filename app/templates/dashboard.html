@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Gerenciador{% endblock %}
+
+{% block content %}
+  <h1>Dashboard</h1>
+
+  <div class="dashboard-cards">
+    <div class="card-stat">
+      <h3>Total de jogos</h3>
+      <p class="stat-number">{{ total_jogos }}</p>
+      {% for item in jogos_por_area %}
+        <small>{{ item.area }}: {{ item.c }}</small><br />
+      {% endfor %}
+    </div>
+
+    <div class="card-stat">
+      <h3>Empréstimos ativos</h3>
+      <p class="stat-number">{{ loans_ativos }}</p>
+    </div>
+
+    <div class="card-stat">
+      <h3>Empréstimos atrasados</h3>
+      <p class="stat-number" style="color:darkred">{{ loans_atrasados }}</p>
+    </div>
+
+    <div class="card-stat">
+      <h3>Empréstimos do mês</h3>
+      <p class="stat-number">{{ loans_mes }}</p>
+    </div>
+  </div>
+
+  <div class="dashboard-lists">
+    <div class="dashboard-list">
+      <h2>Top 5 jogos mais emprestados</h2>
+      <table class="table">
+        <thead>
+          <tr><th>Jogo</th><th>Área</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          {% for item in top_games %}
+            <tr><td>{{ item.nome }}</td><td><span class="badge badge-{{ item.area }}">{{ item.area }}</span></td><td>{{ item.total }}</td></tr>
+          {% else %}
+            <tr><td colspan="3">Nenhum empréstimo ainda.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dashboard-list">
+      <h2>Top 5 usuários mais ativos</h2>
+      <table class="table">
+        <thead>
+          <tr><th>Usuário</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          {% for item in top_users %}
+            <tr><td>{{ item.nome }}</td><td>{{ item.total }}</td></tr>
+          {% else %}
+            <tr><td colspan="2">Nenhum empréstimo ainda.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

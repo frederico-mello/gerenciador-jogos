@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Empréstimos (Admin) — Gerenciador{% endblock %}
+
+{% block content %}
+  <h1>Gerenciar Empréstimos</h1>
+
+  <form method="get" action="{{ url_for('games.emprestimos_admin') }}" class="filter-form">
+    <div class="field-row">
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">Todos</option>
+        <option value="solicitado" {% if filtros.status == 'solicitado' %}selected{% endif %}>Solicitado</option>
+        <option value="reservado" {% if filtros.status == 'reservado' %}selected{% endif %}>Reservado</option>
+        <option value="emprestado" {% if filtros.status == 'emprestado' %}selected{% endif %}>Emprestado</option>
+        <option value="devolvido" {% if filtros.status == 'devolvido' %}selected{% endif %}>Devolvido</option>
+        <option value="cancelado" {% if filtros.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label for="area">Área</label>
+      <select id="area" name="area">
+        <option value="">Todas</option>
+        {% for a in areas %}
+          <option value="{{ a }}" {% if filtros.area == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-row">
+      <label for="user_id">Usuário</label>
+      <select id="user_id" name="user_id">
+        <option value="">Todos</option>
+        {% for u in users_list %}
+          <option value="{{ u.id }}" {% if filtros.user_id|string == u.id|string %}selected{% endif %}>{{ u.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-row">
+      <label for="data_inicio">Data início</label>
+      <input id="data_inicio" name="data_inicio" type="date" value="{{ filtros.data_inicio or '' }}" />
+    </div>
+    <div class="field-row">
+      <label for="data_fim">Data fim</label>
+      <input id="data_fim" name="data_fim" type="date" value="{{ filtros.data_fim or '' }}" />
+    </div>
+    <div class="field-row actions-row">
+      <button type="submit" class="btn btn-secondary">Filtrar</button>
+      <a class="btn btn-ghost" href="{{ url_for('games.emprestimos_admin') }}">Limpar</a>
+    </div>
+  </form>
+
+  {% if loans %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Jogo</th>
+          <th>Área</th>
+          <th>Usuário</th>
+          <th>Status</th>
+          <th>Devolução prevista</th>
+          <th>Renovação</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+          <tr class="{% if loan.status == 'emprestado' and loan.devolucao_prevista and loan.devolucao_prevista < hoje %}row-overdue{% endif %}">
+            <td><a href="{{ url_for('games.detalhe', game_id=loan.game_id) }}">{{ loan.game_nome }}</a></td>
+            <td><span class="badge badge-{{ loan.game_area }}">{{ loan.game_area }}</span></td>
+            <td>{{ loan.user_nome }}</td>
+            <td>
+              {% set status_cor = {'solicitado': 'yellow', 'reservado': 'yellow', 'emprestado': 'red', 'devolvido': 'green', 'cancelado': 'gray'} %}
+              <span class="badge badge-{{ status_cor.get(loan.status, 'gray') }}">{{ loan.status }}</span>
+              {% if loan.status == 'emprestado' and loan.devolucao_prevista and loan.devolucao_prevista < hoje %}
+                <span class="badge badge-darkred">ATRASADO</span>
+              {% endif %}
+            </td>
+            <td>{{ loan.devolucao_prevista or '-' }}</td>
+            <td>
+              {% if loan.renovacao_pendente %}
+                <span class="badge badge-yellow">Pendente</span>
+                <small>{{ loan.nova_devolucao_prevista }}</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if loan.status == 'solicitado' %}
+                <form method="post" action="{{ url_for('games.aprovar_emprestimo', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-sm btn-primary">Aprovar</button>
+                </form>
+              {% endif %}
+              {% if loan.status == 'reservado' %}
+                <form method="post" action="{{ url_for('games.emprestar_jogo', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <label>Devolver até: <input type="date" name="devolucao_prevista" value="{{ loan.devolucao_prevista or '' }}" /></label>
+                  <button type="submit" class="btn btn-sm btn-primary">Emprestar</button>
+                </form>
+              {% endif %}
+              {% if loan.status == 'emprestado' %}
+                <form method="post" action="{{ url_for('games.devolver_jogo', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-sm btn-success">Devolver</button>
+                </form>
+              {% endif %}
+              {% if loan.status not in ('devolvido', 'cancelado') %}
+                <form method="post" action="{{ url_for('games.cancelar_emprestimo_admin', loan_id=loan.id) }}" style="display:inline" onsubmit="return confirm('Cancelar este empréstimo?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <input type="text" name="observacao" placeholder="Motivo (opcional)" style="width:120px" />
+                  <button type="submit" class="btn btn-sm btn-danger">Cancelar</button>
+                </form>
+              {% endif %}
+              {% if loan.renovacao_pendente %}
+                <form method="post" action="{{ url_for('games.aprovar_renovacao', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-sm btn-success">Aprovar renov.</button>
+                </form>
+                <form method="post" action="{{ url_for('games.rejeitar_renovacao', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-sm btn-danger">Rejeitar renov.</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">Nenhum empréstimo encontrado.</p>
+  {% endif %}
+
+  {% include "_pagination.html" %}
+
+  <div class="actions" style="margin-top:12px">
+    <a class="btn btn-secondary" href="{{ url_for('games.export_emprestimos_csv', **filtros) }}">Exportar CSV</a>
+  </div>
+{% endblock %}

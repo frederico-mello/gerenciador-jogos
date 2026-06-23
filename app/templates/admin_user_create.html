@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Novo Usuário — {{ super() }}{% endblock %}
+{% block content %}
+<h1>Novo usuário</h1>
+
+<form method="post" action="{{ url_for('games.admin_users_criar') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="form-group">
+    <label for="nome">Nome *</label>
+    <input type="text" id="nome" name="nome" value="{{ form.get('nome', '') }}" required />
+  </div>
+  <div class="form-group">
+    <label for="email">Email *</label>
+    <input type="email" id="email" name="email" value="{{ form.get('email', '') }}" required />
+  </div>
+  <div class="form-group">
+    <label for="senha">Senha *</label>
+    <input type="password" id="senha" name="senha" required />
+  </div>
+  <div class="form-group">
+    <label for="confirmacao">Confirmar senha *</label>
+    <input type="password" id="confirmacao" name="confirmacao" required />
+  </div>
+  <div class="form-group">
+    <label for="role">Papel</label>
+    <select id="role" name="role">
+      <option value="usuario" {% if form.get('role', 'usuario') == 'usuario' %}selected{% endif %}>Usuário</option>
+      <option value="admin_jogos" {% if form.get('role') == 'admin_jogos' %}selected{% endif %}>Admin Jogos</option>
+      <option value="admin_sistema" {% if form.get('role') == 'admin_sistema' %}selected{% endif %}>Admin Sistema</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="escola_id">Escola</label>
+    <select id="escola_id" name="escola_id">
+      <option value="">— Sem escola —</option>
+      {% for s in escolas %}
+        <option value="{{ s.id }}" {% if form.get('escola_id')|string == s.id|string %}selected{% endif %}>{{ s.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="ativo" value="1" {% if form.get('ativo', '1') == '1' or not form %}checked{% endif %} />
+      Ativo
+    </label>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Criar</button>
+    <a class="btn" href="{{ url_for('games.admin_users') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

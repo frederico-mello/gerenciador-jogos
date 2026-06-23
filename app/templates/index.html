@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Jogos — Gerenciador{% endblock %}
+
+{% block content %}
+  <div class="list-header">
+    <h1>Jogos</h1>
+    <div class="list-actions">
+      {% if current_user and current_user.role in ('admin_sistema', 'admin_jogos') %}
+        <a class="btn btn-primary" href="{{ url_for('games.novo') }}">Novo jogo</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="get" action="{{ url_for('games.index') }}" class="filter-form">
+    <div class="field-row">
+      <label for="area">Área</label>
+      <select id="area" name="area">
+        <option value="todas" {% if area is none %}selected{% endif %}>todas</option>
+        {% for area_opt in areas %}
+          <option value="{{ area_opt }}" {% if area == area_opt %}selected{% endif %}>{{ area_opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field-row">
+      <label for="q">Buscar</label>
+      <input id="q" name="q" type="text" value="{{ q or '' }}" placeholder="Buscar por nome..." />
+    </div>
+
+    <div class="field-row actions-row">
+      <button type="submit" class="btn btn-secondary">Filtrar</button>
+      <a class="btn btn-ghost" href="{{ url_for('games.index') }}">Limpar</a>
+    </div>
+  </form>
+
+  {% if games %}
+    <div class="card-grid">
+      {% for game in games %}
+        <a class="card" href="{{ url_for('games.detalhe', game_id=game.id) }}">
+          {% if game.imagem_perfil %}
+            <img src="{{ url_for('games.media', filename=game.imagem_perfil) }}" alt="{{ game.nome }}" class="card-thumb" />
+          {% else %}
+            <div class="card-thumb placeholder">Sem imagem</div>
+          {% endif %}
+
+          <div class="card-body">
+            <h3 class="card-title">{{ game.nome }}</h3>
+            <span class="badge badge-{{ game.area }}">{{ game.area }}</span>
+            {% with availability_status = game.availability_status %}
+              {% include "_badge_disponibilidade.html" %}
+            {% endwith %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">Nenhum jogo cadastrado.</p>
+  {% endif %}
+  {% include "_pagination.html" %}
+{% endblock %}

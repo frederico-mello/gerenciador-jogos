@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Gerenciador de Jogos{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="site-title" href="{{ url_for('games.index') }}">Gerenciador de Jogos</a>
+      <nav class="site-nav">
+        <a href="{{ url_for('games.index') }}">Início</a>
+        {% if current_user %}
+          {% if current_user.role in ('admin_sistema', 'admin_jogos') %}
+            <a href="{{ url_for('games.novo') }}">Novo jogo</a>
+            <a href="{{ url_for('games.emprestimos_admin') }}">Empréstimos (admin)</a>
+            <a href="{{ url_for('games.admin_dashboard') }}">Dashboard</a>
+          {% endif %}
+          {% if current_user.role == 'admin_sistema' %}
+            <a href="{{ url_for('games.admin_users') }}">Usuários</a>
+            <a href="{{ url_for('games.admin_schools') }}">Escolas</a>
+          {% endif %}
+          {% if current_user.role == 'usuario' %}
+            <a href="{{ url_for('games.emprestimos') }}">Meus empréstimos</a>
+          {% endif %}
+          <a href="{{ url_for('games.perfil') }}">Perfil</a>
+          <a href="{{ url_for('games.logout') }}">Sair ({{ current_user.nome }})</a>
+        {% else %}
+          <a href="{{ url_for('games.login') }}">Login</a>
+          <a href="{{ url_for('games.registrar') }}">Registrar</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" role="status" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="page-main">{% block content %}{% endblock %}</main>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

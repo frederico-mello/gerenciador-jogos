@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Editar Usuário — {{ super() }}{% endblock %}
+{% block content %}
+<h1>Editar usuário: {{ user.nome }}</h1>
+
+<form method="post" action="{{ url_for('games.admin_users_editar', user_id=user.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="form-group">
+    <label for="nome">Nome *</label>
+    <input type="text" id="nome" name="nome" value="{{ form.get('nome', user.nome) }}" required />
+  </div>
+  <div class="form-group">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" value="{{ form.get('email', user.email) }}" />
+  </div>
+  <div class="form-group">
+    <label for="escola_id">Escola</label>
+    <select id="escola_id" name="escola_id">
+      <option value="">— Sem escola —</option>
+      {% for s in escolas %}
+        <option value="{{ s.id }}" {% if (form.get('escola_id') or user.escola_id)|string == s.id|string %}selected{% endif %}>{{ s.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="senha">Nova senha (deixe em branco para manter)</label>
+    <input type="password" id="senha" name="senha" />
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="ativo" value="1" {% if form.get('ativo', '1' if user.ativo else '') == '1' or (not form and user.ativo) %}checked{% endif %} />
+      Ativo
+    </label>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="receber_emails" value="1" {% if form.get('receber_emails', '1' if user.receber_emails else '') == '1' or (not form and user.receber_emails) %}checked{% endif %} />
+      Receber notificações por email
+    </label>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Salvar</button>
+    <a class="btn" href="{{ url_for('games.admin_users') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

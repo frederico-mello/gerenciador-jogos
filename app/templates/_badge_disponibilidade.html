@@ -1,0 +1,7 @@
+{% set status_map = {'disponivel': ('Disponível', 'green'), 'solicitado': ('Solicitado', 'yellow'), 'reservado': ('Reservado', 'yellow'), 'emprestado': ('Emprestado', 'red')} %}
+{% set label, color = status_map.get(availability_status, ('Desconhecido', 'gray')) %}
+{% if availability_status == 'emprestado' and hoje is defined and devolucao_prevista is defined and devolucao_prevista and devolucao_prevista < hoje %}
+  {% set label = 'ATRASADO' %}
+  {% set color = 'darkred' %}
+{% endif %}
+<span class="badge badge-{{ color }}">{{ label }}</span>

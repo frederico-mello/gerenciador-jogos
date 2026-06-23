@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if game %}Editar — {{ game.nome }}{% else %}Novo jogo{% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="form-header">
+    <h1>
+      {% if game %}Editar — {{ game.nome }}{% else %}Novo jogo{% endif %}
+    </h1>
+  </div>
+
+  {% set current_nome = form.get('nome', game['nome'] if game else '') %}
+  {% set current_area = form.get('area', game['area'] if game else '') %}
+  {% set current_descricao = form.get('descricao', game['descricao'] if game else '') %}
+  {% set current_regras = form.get('regras_resumo', game['regras_resumo'] if game else '') %}
+  {% set current_jogadores = form.get('num_jogadores', game['num_jogadores'] if game else '') %}
+  {% set current_duracao = form.get('duracao_min', game['duracao_min'] if game else '') %}
+
+  <form
+    method="post"
+    enctype="multipart/form-data"
+    action="{{ url_for('games.editar', game_id=game.id) if game else url_for('games.novo') }}"
+    class="game-form"
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="field">
+      <label for="nome">Nome</label>
+      <input id="nome" name="nome" type="text" required value="{{ current_nome }}" />
+    </div>
+
+    <div class="field">
+      <label for="area">Área</label>
+      <select id="area" name="area" required>
+        {% for area_opt in areas %}
+          <option value="{{ area_opt }}" {% if area_opt == current_area %}selected{% endif %}>{{ area_opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="descricao">Descrição (Markdown)</label>
+      <textarea id="descricao" name="descricao" rows="8">{{ current_descricao or '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label for="regras_resumo">Regras (resumo)</label>
+      <input id="regras_resumo" name="regras_resumo" type="text" value="{{ current_regras or '' }}" />
+    </div>
+
+    <div class="field">
+      <label for="num_jogadores">Nº de jogadores</label>
+      <input
+        id="num_jogadores"
+        name="num_jogadores"
+        type="text"
+        value="{{ current_jogadores or '' }}"
+        placeholder="ex.: 2–6"
+      />
+    </div>
+
+    <div class="field">
+      <label for="duracao_min">Duração mínima (min)</label>
+      <input
+        id="duracao_min"
+        name="duracao_min"
+        type="number"
+        min="0"
+        value="{{ current_duracao if current_duracao is not none else '' }}"
+        placeholder="minutos"
+      />
+    </div>
+
+    {% if game and game.imagem_componentes %}
+      <div class="current-image">
+        <p class="muted">Imagem atual (componentes)</p>
+        <img
+          src="{{ url_for('games.media', filename=game.imagem_componentes) }}"
+          alt="Componentes"
+          class="image-preview"
+        />
+      </div>
+    {% endif %}
+
+    {% if game and game.imagem_perfil %}
+      <div class="current-image">
+        <p class="muted">Imagem atual (perfil)</p>
+        <img
+          src="{{ url_for('games.media', filename=game.imagem_perfil) }}"
+          alt="Perfil"
+          class="image-preview"
+        />
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="imagem_componentes">Imagem de componentes (opcional)</label>
+      <input id="imagem_componentes" name="imagem_componentes" type="file" accept="image/*" />
+    </div>
+
+    <div class="field">
+      <label for="imagem_perfil">Imagem de perfil (opcional)</label>
+      <input id="imagem_perfil" name="imagem_perfil" type="file" accept="image/*" />
+    </div>
+
+    {% if game %}
+      <p class="muted">
+        Páginas de manual atuais: {{ pages|length if pages else 0 }}.
+        Se você enviar novas páginas, elas substituirão as atuais. Se não enviar, as atuais permanecem.
+      </p>
+    {% endif %}
+
+    <div class="field">
+      <label for="manual_pages">Páginas do manual (selecione 1 ou mais, em ordem)</label>
+      <input id="manual_pages" name="manual_pages" type="file" accept="image/*" multiple />
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{% if game %}Salvar alterações{% else %}Criar{% endif %}</button>
+      {% if game %}
+        <a class="btn btn-ghost" href="{{ url_for('games.detalhe', game_id=game.id) }}">Cancelar</a>
+      {% else %}
+        <a class="btn btn-ghost" href="{{ url_for('games.index') }}">Cancelar</a>
+      {% endif %}
+    </div>
+  </form>
+{% endblock %}

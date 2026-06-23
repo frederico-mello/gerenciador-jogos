@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Empréstimos — Gerenciador{% endblock %}
+
+{% block content %}
+  <div class="list-header">
+    <h1>Meus Empréstimos</h1>
+    <div class="list-actions">
+      <a class="btn btn-primary" href="{{ url_for('games.index') }}">Solicitar novo empréstimo</a>
+    </div>
+  </div>
+
+  {% if loans %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Jogo</th>
+          <th>Área</th>
+          <th>Status</th>
+          <th>Devolução prevista</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+          <tr>
+            <td><a href="{{ url_for('games.detalhe', game_id=loan.game_id) }}">{{ loan.game_nome }}</a></td>
+            <td><span class="badge badge-{{ loan.game_area }}">{{ loan.game_area }}</span></td>
+            <td>
+              {% set status_cor = {'solicitado': 'yellow', 'reservado': 'yellow', 'emprestado': 'red', 'devolvido': 'green', 'cancelado': 'gray'} %}
+              <span class="badge badge-{{ status_cor.get(loan.status, 'gray') }}">{{ loan.status }}</span>
+              {% if loan.status == 'emprestado' and loan.devolucao_prevista and loan.devolucao_prevista < hoje %}
+                <span class="badge badge-darkred">ATRASADO</span>
+              {% endif %}
+              {% if loan.renovacao_pendente %}
+                <span class="badge badge-yellow">Renovação solicitada</span>
+              {% endif %}
+            </td>
+            <td>{{ loan.devolucao_prevista or '-' }}</td>
+            <td>
+              {% if loan.status == 'solicitado' %}
+                <form method="post" action="{{ url_for('games.cancelar_emprestimo', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-sm btn-danger">Cancelar</button>
+                </form>
+              {% elif loan.status == 'emprestado' and not loan.renovacao_pendente %}
+                <form method="post" action="{{ url_for('games.renovar_emprestimo', loan_id=loan.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <label>Nova data: <input type="date" name="nova_devolucao_prevista" required /></label>
+                  <button type="submit" class="btn btn-sm btn-secondary">Renovar</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">Nenhum empréstimo encontrado.</p>
+  {% endif %}
+
+  {% include "_pagination.html" %}
+
+  <a class="btn btn-secondary" href="{{ url_for('games.index') }}">← Voltar ao catálogo</a>
+{% endblock %}

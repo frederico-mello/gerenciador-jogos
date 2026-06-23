@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.nome }} — Gerenciador{% endblock %}
+
+{% block content %}
+  <div class="detail-header">
+    <div>
+      <h1 class="detail-title">{{ game.nome }}</h1>
+      <div class="detail-meta">
+        <span class="badge badge-{{ game.area }}">{{ game.area }}</span>
+        {% include "_badge_disponibilidade.html" %}
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      {% if current_user and current_user.role in ('admin_sistema', 'admin_jogos') %}
+        <a class="btn btn-secondary" href="{{ url_for('games.editar', game_id=game.id) }}">Editar</a>
+        <button type="button" class="btn btn-danger" onclick="openModal()">Excluir</button>
+      {% elif current_user and current_user.role == 'usuario' %}
+        {% if not user_has_active_loan %}
+          {% if availability_status == 'disponivel' %}
+            <form method="post" action="{{ url_for('games.solicitar_emprestimo', game_id=game.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-primary">Solicitar Empréstimo</button>
+            </form>
+          {% else %}
+            <a class="btn btn-secondary" href="{{ url_for('games.confirmar_fila', game_id=game.id) }}">Entrar na fila</a>
+          {% endif %}
+        {% endif %}
+      {% elif not current_user and availability_status == 'disponivel' %}
+        <a class="btn btn-secondary" href="{{ url_for('games.login') }}">Faça login para solicitar</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if descricao_html %}
+    <section class="game-about">
+      <h2 class="section-title">Sobre o jogo</h2>
+      <div class="markdown-content">
+        {{ descricao_html|safe }}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="detail-grid">
+    <div class="detail-media">
+      {% if game.imagem_componentes %}
+        <div class="media-block">
+          <h2 class="section-title">Componentes</h2>
+          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_componentes) }}" alt="Componentes" />
+        </div>
+      {% endif %}
+
+      {% if game.imagem_perfil %}
+        <div class="media-block">
+          <h2 class="section-title">Perfil</h2>
+          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_perfil) }}" alt="Perfil" />
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="detail-specs">
+      {% set has_any_spec = game.regras_resumo or game.num_jogadores or game.duracao_min is not none %}
+      {% if has_any_spec %}
+        <section class="game-specs">
+          <h2 class="section-title">Detalhes técnicos</h2>
+          <div class="specs-grid">
+            {% if game.regras_resumo %}
+              <div class="spec-card">
+                <span class="spec-label">Regras (resumo)</span>
+                <span class="spec-value">{{ game.regras_resumo }}</span>
+              </div>
+            {% endif %}
+
+            {% if game.num_jogadores %}
+              <div class="spec-card">
+                <span class="spec-label">Nº de jogadores</span>
+                <span class="spec-value">{{ game.num_jogadores }}</span>
+              </div>
+            {% endif %}
+
+            {% if game.duracao_min is not none %}
+              <div class="spec-card">
+                <span class="spec-label">Duração mínima</span>
+                <span class="spec-value">{{ game.duracao_min }} min</span>
+              </div>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if pages and pages|length > 0 %}
+    <section class="manual-section">
+      <h2>Manual</h2>
+
+      <noscript>
+        <style>.carousel-slide { display: block !important; margin-bottom: 12px; }</style>
+      </noscript>
+
+      {% if pages|length > 1 %}
+        <div class="carousel-controls">
+          <button
+            type="button"
+            id="carousel-prev"
+            class="carousel-btn"
+            disabled
+          >
+            ‹ Anterior
+          </button>
+          <div id="carousel-status" class="carousel-status">Página 1 de {{ pages|length }}</div>
+          <button
+            type="button"
+            id="carousel-next"
+            class="carousel-btn"
+          >
+            Próximo ›
+          </button>
+        </div>
+      {% endif %}
+
+      <div class="carousel" id="manual-carousel">
+        {% for page in pages %}
+          <div class="carousel-slide{% if loop.first %} active{% endif %}">
+            <img
+              src="{{ url_for('games.media', filename=page.path) }}"
+              alt="Manual página {{ page.ordem }}"
+            />
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if loan_history %}
+    <section class="loan-history">
+      <h2>Histórico de empréstimos</h2>
+      <table class="table">
+        <thead>
+          <tr><th>Usuário</th><th>Período</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for h in loan_history %}
+            <tr>
+              <td>{{ h.user_nome }}</td>
+              <td>{{ h.solicitado_at[:10] if h.solicitado_at else '-' }} a {{ h.devolvido_at[:10] if h.devolvido_at else (h.devolucao_prevista or '...') }}</td>
+              <td><span class="badge badge-{{ 'green' if h.status == 'devolvido' else 'red' if h.status == 'emprestado' else 'gray' }}">{{ h.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  <div class="modal-overlay" id="delete-modal" hidden role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <div class="modal">
+      <h2 id="delete-modal-title">Confirmar exclusão</h2>
+      <p>
+        Tem certeza que deseja excluir "{{ game.nome }}"?
+        Esta ação não pode ser desfeita.
+      </p>
+      <form method="post" action="{{ url_for('games.excluir', game_id=game.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Excluir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function openModal() {
+      const modal = document.getElementById('delete-modal');
+      if (modal) modal.removeAttribute('hidden');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('delete-modal');
+      if (modal) modal.setAttribute('hidden', '');
+    }
+
+    (function () {
+      const carousel = document.getElementById('manual-carousel');
+      if (!carousel) return;
+
+      const slides = Array.from(carousel.querySelectorAll('.carousel-slide'));
+      if (slides.length <= 1) return;
+
+      const prevBtn = document.getElementById('carousel-prev');
+      const nextBtn = document.getElementById('carousel-next');
+      const status = document.getElementById('carousel-status');
+
+      let idx = 0;
+
+      function render() {
+        slides.forEach((el, i) => {
+          if (i === idx) el.classList.add('active');
+          else el.classList.remove('active');
+        });
+
+        if (status) status.textContent = `Página ${idx + 1} de ${slides.length}`;
+        if (prevBtn) prevBtn.disabled = idx === 0;
+        if (nextBtn) nextBtn.disabled = idx === slides.length - 1;
+      }
+
+      if (prevBtn) prevBtn.addEventListener('click', () => {
+        idx = Math.max(0, idx - 1);
+        render();
+      });
+
+      if (nextBtn) nextBtn.addEventListener('click', () => {
+        idx = Math.min(slides.length - 1, idx + 1);
+        render();
+      });
+
+      render();
+    })();
+  </script>
+{% endblock %}

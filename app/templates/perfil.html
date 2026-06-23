@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Meu Perfil — Gerenciador{% endblock %}
+{% block content %}
+  <h1>Meu Perfil</h1>
+  <form method="post" action="{{ url_for('games.perfil') }}" class="game-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="field">
+      <label for="nome">Nome</label>
+      <input id="nome" name="nome" type="text" value="{{ form.nome or '' }}" required />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{ form.email or '' }}" required />
+    </div>
+    <div class="field">
+      <label for="senha">Nova senha (deixe em branco para manter)</label>
+      <input id="senha" name="senha" type="password" />
+    </div>
+    <div class="field">
+      <label>
+        <input type="checkbox" name="receber_emails" value="1" {% if form.receber_emails %}checked{% endif %} />
+        Receber notificações por email
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Salvar</button>
+      <a class="btn btn-ghost" href="{{ url_for('games.index') }}">Cancelar</a>
+    </div>
+  </form>
+{% endblock %}
