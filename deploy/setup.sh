@@ -27,7 +27,7 @@ apt update -qq
 apt upgrade -y -qq
 
 echo ">>> Instalando dependências do sistema..."
-apt install -y -qq python3 python3-pip python3-venv nginx certbot python3-certbot-nginx ufw
+apt install -y -qq python3 python3-pip python3-venv nginx certbot python3-certbot-nginx ufw rsync
 
 echo ""
 read -rp "Qual é o domínio do servidor? (ex: jogos.exemplo.com) " DOMAIN
