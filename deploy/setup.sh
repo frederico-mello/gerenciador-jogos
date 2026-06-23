@@ -106,8 +106,8 @@ certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAI
 echo ">>> Instalando serviço Systemd..."
 cp "$APP_DIR/deploy/gunicorn.service" "/etc/systemd/system/gerenciador-jogos.service"
 systemctl daemon-reload
-systemctl enable gunicorn
-systemctl restart gunicorn
+systemctl enable gerenciador-jogos
+systemctl restart gerenciador-jogos
 
 echo ">>> Verificando Nginx..."
 nginx -t && systemctl reload nginx
@@ -137,11 +137,11 @@ echo ""
 echo "  Acesse: https://$DOMAIN"
 echo ""
 echo "  Serviços:"
-echo "    sudo systemctl status gunicorn"
+echo "    sudo systemctl status gerenciador-jogos"
 echo "    sudo systemctl status nginx"
 echo ""
 echo "  Logs:"
-echo "    journalctl -u gunicorn -f"
+echo "    journalctl -u gerenciador-jogos -f"
 echo "    tail -f /var/log/nginx/access.log"
 echo ""
 echo "  Backup do banco:"
