@@ -1,5 +1,6 @@
 """Importa jogos das pastas Downloads para data/ + SQLite."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,11 @@ from app.importer import import_all
 
 def main():
     base = Path(__file__).resolve().parent.parent
-    downloads_root = Path.home() / "Downloads"
+    downloads_root = os.environ.get("IMPORT_SOURCE_DIR")
+    if not downloads_root:
+        print("Erro: IMPORT_SOURCE_DIR não definido no .env")
+        sys.exit(1)
+    downloads_root = Path(downloads_root)
     data_dir = base / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 

@@ -2,13 +2,9 @@
 
 CRUD local de jogos educacionais (anatomia, histologia, microbiologia) com Flask + SQLite.
 
-> ⚠️ **Importante:** todos os comandos abaixo — `pip`, `python`, `flask`, `pytest` — devem ser executados **com o ambiente virtual ativado** (`.\.venv\Scripts\Activate.ps1`). Caso contrário, depêndencias como `python-dotenv` não serão encontradas.
-
 ## Setup
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
@@ -45,7 +41,7 @@ Cria `instance\jogos.db` (vazio).
 python scripts\import_from_downloads.py
 ```
 
-Varre `C:\Users\Frederico\Downloads\Fotos <area>\Fotos <area>\` para as 3 áreas, copia e redimensiona imagens para `data\<area>\<jogo-slug>\`, converte DOCX para Markdown, e popula o banco. **Idempotente**: re-executar não duplica. A pasta Downloads permanece intacta.
+Varre `IMPORT_SOURCE_DIR` (definido no `.env`) para as 3 áreas, copia e redimensiona imagens para `data\<area>\<jogo-slug>\`, converte DOCX para Markdown, e popula o banco. **Idempotente**: re-executar não duplica.
 
 ## Rodar o servidor
 
