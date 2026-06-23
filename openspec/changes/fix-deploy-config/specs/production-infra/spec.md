@@ -1,0 +1,70 @@
+## MODIFIED Requirements
+
+### Requirement: Configuração Nginx como proxy reverso com HTTPS
+O sistema SHALL fornecer um arquivo `deploy/nginx.conf` com configuração de proxy reverso: redirect HTTP→HTTPS, `listen 443 ssl http2;` (compatível com Nginx 1.22+), caminhos de certificado SSL com placeholder `__DOMAIN__` substituível pelo domínio real durante o setup, proxy para o socket do Gunicorn, serving de arquivos estáticos e de dados, e security headers.
+
+#### Scenario: Request HTTP é redirecionado para HTTPS
+- **WHEN** um cliente faz `GET http://exemplo.com/`
+- **THEN** o Nginx responde com HTTP 301 para `https://exemplo.com/`
+
+#### Scenario: Request HTTPS para rota dinâmica é proxied para Gunicorn
+- **WHEN** um cliente faz `GET https://exemplo.com/`
+- **THEN** o Nginx proxya o request para o socket do Gunicorn e retorna a resposta
+
+#### Scenario: Request para arquivo estático é servido diretamente pelo Nginx
+- **WHEN** um cliente faz `GET https://exemplo.com/static/style.css`
+- **THEN** o Nginx serve o arquivo diretamente do disco, sem envolver o Gunicorn
+
+#### Scenario: Request para arquivo de dados (imagem) é servido pelo Nginx
+- **WHEN** um cliente faz `GET https://exemplo.com/media/anatomia/jogo-slug/foto.jpg`
+- **THEN** o Nginx serve a imagem diretamente do diretório `data/`
+
+#### Scenario: Security headers presentes em todas as respostas
+- **WHEN** o Nginx responde qualquer request
+- **THEN** os headers `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Content-Security-Policy` estão presentes
+
+#### Scenario: Configuração compatível com Nginx 1.22
+- **WHEN** o template `deploy/nginx.conf` é processado pelo Nginx 1.22.1
+- **THEN** a diretiva `listen 443 ssl http2;` é aceita sem erro de "unknown directive"
+
+#### Scenario: Caminho do certificado usa domínio real
+- **WHEN** o script setup.sh é executado com domínio `lappjogos.ict.unesp.br`
+- **THEN** os caminhos `ssl_certificate` e `ssl_certificate_key` apontam para `/etc/letsencrypt/live/lappjogos.ict.unesp.br/`
+
+### Requirement: Script de setup automatizado para o servidor
+O sistema SHALL fornecer um script `deploy/setup.sh` que automatiza a instalação em um servidor Ubuntu 22.04+ limpo: instala Python, Nginx, Certbot, rsync, cria usuário dedicado, copia configurações, substitui o placeholder `__DOMAIN__` pelo domínio informado, gera certificado Let's Encrypt, inicia os serviços e usa o nome correto do serviço Systemd (`gerenciador-jogos`).
+
+#### Scenario: Setup completo em servidor limpo
+- **WHEN** um administrador executa `sudo bash deploy/setup.sh` em um Ubuntu 22.04 limpo
+- **THEN** todas as dependências são instaladas, Nginx configurado, certificado SSL gerado, e o serviço `gerenciador-jogos` está rodando
+
+#### Scenario: Setup solicita domínio
+- **WHEN** o script é executado
+- **THEN** ele pergunta "Qual é o domínio do servidor?" e usa a resposta para configurar Nginx e o certificado
+
+#### Scenario: Setup é idempotente
+- **WHEN** o script é executado novamente após setup bem-sucedido
+- **THEN** ele atualiza as configurações sem erros, reinicia os serviços e mantém certificados existentes
+
+#### Scenario: Nome correto do serviço Systemd
+- **WHEN** o setup configura o Systemd
+- **THEN** o arquivo `/etc/systemd/system/gerenciador-jogos.service` é criado e os comandos `systemctl` usam `gerenciador-jogos`
+
+### Requirement: Logging de produção
+O sistema SHALL configurar logging do Gunicorn para stdout/stderr (capturado pelo journalctl) com formato contendo timestamp, nível, e mensagem. O Nginx SHALL logar acesso e erros em `/var/log/nginx/`.
+
+#### Scenario: Log de request no journalctl
+- **WHEN** um request é processado pelo Gunicorn
+- **THEN** uma linha de log com timestamp, method, path, status code e tempo de resposta aparece no `journalctl -u gerenciador-jogos`
+
+#### Scenario: Log de erro no journalctl
+- **WHEN** uma exceção não tratada ocorre na aplicação
+- **THEN** o traceback completo aparece no `journalctl -u gerenciador-jogos`
+
+## ADDED Requirements
+
+*(nenhum)*
+
+## REMOVED Requirements
+
+*(nenhum)*

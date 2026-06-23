@@ -89,6 +89,7 @@ fi
 
 cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
 sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
+sed -i "s/__DOMAIN__/$DOMAIN/g" "/etc/nginx/sites-available/gerenciador-jogos"
 
 if [ ! -L "/etc/nginx/sites-enabled/gerenciador-jogos" ]; then
     ln -s "/etc/nginx/sites-available/gerenciador-jogos" "/etc/nginx/sites-enabled/"
