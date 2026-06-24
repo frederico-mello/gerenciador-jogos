@@ -103,6 +103,15 @@ fi
 
 nginx -t && systemctl reload nginx
 
+echo ">>> Configurando firewall (UFW)..."
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp comment 'SSH'
+ufw allow 80/tcp comment 'HTTP'
+ufw allow 443/tcp comment 'HTTPS'
+ufw --force enable
+
 echo ">>> Gerando certificado SSL com Let's Encrypt (fase 2/3)..."
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAIN" || {
@@ -135,15 +144,6 @@ if [ -z "${CERT_FAILED:-}" ]; then
     sed -i "s/__DOMAIN__/$DOMAIN/g" "/etc/nginx/sites-available/gerenciador-jogos"
     nginx -t && systemctl reload nginx
 fi
-
-echo ">>> Configurando firewall (UFW)..."
-ufw --force reset
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP'
-ufw allow 443/tcp comment 'HTTPS'
-ufw --force enable
 
 echo ">>> Configurando renovação automática do certificado..."
 if systemctl list-units --type=timer | grep -q certbot.timer; then
