@@ -82,27 +82,45 @@ chown -R www-data:www-data "$APP_DIR/instance" "$APP_DIR/data"
 chown www-data:www-data "$APP_DIR/.env"
 chmod 640 "$APP_DIR/.env"
 
-echo ">>> Configurando Nginx..."
+echo ">>> Configurando Nginx (fase 1/3 — HTTP-only para bootstrapping)..."
 if [ -f "/etc/nginx/sites-enabled/default" ]; then
     rm /etc/nginx/sites-enabled/default
 fi
 
-cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
-sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
-sed -i "s/__DOMAIN__/$DOMAIN/g" "/etc/nginx/sites-available/gerenciador-jogos"
+cat > "/etc/nginx/sites-available/gerenciador-jogos" <<NGINX_HTTP
+server {
+    listen 80;
+    server_name $DOMAIN;
+    location / {
+        return 200 'Gerenciador de Jogos — deploy em andamento...';
+    }
+}
+NGINX_HTTP
 
 if [ ! -L "/etc/nginx/sites-enabled/gerenciador-jogos" ]; then
     ln -s "/etc/nginx/sites-available/gerenciador-jogos" "/etc/nginx/sites-enabled/"
 fi
 
-echo ">>> Gerando certificado SSL com Let's Encrypt..."
-certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAIN" --redirect || {
-    echo ""
-    echo "    AVISO: A geração do certificado falhou."
-    echo "    Execute manualmente após configurar o DNS:"
-    echo "      sudo certbot --nginx -d $DOMAIN"
-    echo ""
-}
+nginx -t && systemctl reload nginx
+
+echo ">>> Gerando certificado SSL com Let's Encrypt (fase 2/3)..."
+if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAIN" || {
+        echo ""
+        echo "    AVISO: A geração do certificado falhou."
+        echo "    Mantendo config HTTP-only para troubleshooting."
+        echo "    Execute manualmente após configurar o DNS:"
+        echo "      sudo certbot certonly --nginx -d $DOMAIN"
+        echo "      sudo cp /opt/gerenciador-jogos/deploy/nginx.conf /etc/nginx/sites-available/gerenciador-jogos"
+        echo "      sudo sed -i 's/server_name _;/server_name $DOMAIN;/g' /etc/nginx/sites-available/gerenciador-jogos"
+        echo "      sudo sed -i 's/__DOMAIN__/$DOMAIN/g' /etc/nginx/sites-available/gerenciador-jogos"
+        echo "      sudo nginx -t && sudo systemctl reload nginx"
+        echo ""
+        CERT_FAILED=1
+    }
+else
+    echo "    Certificado já existe — pulando emissão."
+fi
 
 echo ">>> Instalando serviço Systemd..."
 cp "$APP_DIR/deploy/gunicorn.service" "/etc/systemd/system/gerenciador-jogos.service"
@@ -110,8 +128,13 @@ systemctl daemon-reload
 systemctl enable gerenciador-jogos
 systemctl restart gerenciador-jogos
 
-echo ">>> Verificando Nginx..."
-nginx -t && systemctl reload nginx
+if [ -z "${CERT_FAILED:-}" ]; then
+    echo ">>> Instalando config completa com SSL (fase 3/3)..."
+    cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
+    sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
+    sed -i "s/__DOMAIN__/$DOMAIN/g" "/etc/nginx/sites-available/gerenciador-jogos"
+    nginx -t && systemctl reload nginx
+fi
 
 echo ">>> Configurando firewall (UFW)..."
 ufw --force reset

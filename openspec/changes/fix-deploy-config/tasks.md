@@ -12,8 +12,18 @@
 - [x] 2.5 Atualizar mensagens finais com `sudo systemctl status gerenciador-jogos` e `journalctl -u gerenciador-jogos -f`
 - [x] 2.6 Adicionar `nginx -t` após substituições de domínio/certificado para validar configuração
 
-## 3. Testar e Documentar
+## 3. Resolver dependência circular de bootstrapping SSL
 
-- [ ] 3.1 Executar setup.sh corrigido em servidor de teste (se disponível)
-- [ ] 3.2 Confirmar que `sudo nginx -t` passa sem erros
-- [ ] 3.3 Confirmar que o serviço `gerenciador-jogos` inicia e o site é acessível via HTTPS
+- [x] 3.1 Refatorar o bloco "Configurando Nginx" do `setup.sh` para implementar fluxo two-phase:
+  - Fase 1: escrever config HTTP-only temporária em `/etc/nginx/sites-available/gerenciador-jogos`
+  - Validar com `nginx -t` e recarregar Nginx
+- [x] 3.2 Alterar `certbot --nginx` para `certbot certonly --nginx` (emitir cert sem modificar config)
+- [x] 3.3 Envolver `certbot certonly` em `if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]` para idempotência
+- [x] 3.4 Após certbot, copiar `nginx.conf` completo, substituir `__DOMAIN__` e `server_name`, validar com `nginx -t` e recarregar
+- [x] 3.5 Tratar falha do certbot: se falhar, manter config HTTP-only e avisar (não instalar config SSL quebrada)
+
+## 4. Testar e Documentar
+
+- [ ] 4.1 Executar setup.sh corrigido em servidor de teste (se disponível)
+- [ ] 4.2 Confirmar que `sudo nginx -t` passa sem erros em todas as fases
+- [ ] 4.3 Confirmar que o serviço `gerenciador-jogos` inicia e o site é acessível via HTTPS

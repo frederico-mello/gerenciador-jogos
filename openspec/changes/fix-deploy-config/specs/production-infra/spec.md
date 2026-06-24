@@ -32,7 +32,7 @@ O sistema SHALL fornecer um arquivo `deploy/nginx.conf` com configuração de pr
 - **THEN** os caminhos `ssl_certificate` e `ssl_certificate_key` apontam para `/etc/letsencrypt/live/lappjogos.ict.unesp.br/`
 
 ### Requirement: Script de setup automatizado para o servidor
-O sistema SHALL fornecer um script `deploy/setup.sh` que automatiza a instalação em um servidor Ubuntu 22.04+ limpo: instala Python, Nginx, Certbot, rsync, cria usuário dedicado, copia configurações, substitui o placeholder `__DOMAIN__` pelo domínio informado, gera certificado Let's Encrypt, inicia os serviços e usa o nome correto do serviço Systemd (`gerenciador-jogos`).
+O sistema SHALL fornecer um script `deploy/setup.sh` que automatiza a instalação em um servidor Ubuntu 22.04+ limpo: instala Python, Nginx, Certbot, rsync, cria usuário dedicado, copia configurações, substitui o placeholder `__DOMAIN__` pelo domínio informado, gera certificado Let's Encrypt, inicia os serviços e usa o nome correto do serviço Systemd (`gerenciador-jogos`). O script SHALL usar um fluxo two-phase para bootstrapping SSL: primeiro deploya uma config Nginx HTTP-only temporária, emite o certificado, e só então instala a config completa com SSL.
 
 #### Scenario: Setup completo em servidor limpo
 - **WHEN** um administrador executa `sudo bash deploy/setup.sh` em um Ubuntu 22.04 limpo
@@ -50,6 +50,22 @@ O sistema SHALL fornecer um script `deploy/setup.sh` que automatiza a instalaç�
 - **WHEN** o setup configura o Systemd
 - **THEN** o arquivo `/etc/systemd/system/gerenciador-jogos.service` é criado e os comandos `systemctl` usam `gerenciador-jogos`
 
+#### Scenario: Bootstrapping SSL em duas fases
+- **WHEN** o setup é executado em um servidor sem certificado SSL existente
+- **THEN** o script primeiro instala uma config Nginx HTTP-only (sem diretivas `ssl_certificate`), valida com `nginx -t`, emite o certificado via `certbot certonly --nginx`, e só então instala a config completa com SSL
+
+#### Scenario: nginx -t passa em todas as fases
+- **WHEN** o setup executa `nginx -t` durante o bootstrapping SSL
+- **THEN** `nginx -t` passa sem erros tanto na fase HTTP-only (sem certificados referenciados) quanto na fase final (com certificados já emitidos)
+
+#### Scenario: Certbot não modifica a config do Nginx
+- **WHEN** o setup emite o certificado
+- **THEN** o script usa `certbot certonly --nginx` (não `certbot --nginx`), para que o Certbot apenas emita o certificado sem alterar a config do Nginx
+
+#### Scenario: Reexecução quando certificado já existe
+- **WHEN** o setup é reexecutado e `/etc/letsencrypt/live/$DOMAIN` já existe
+- **THEN** o script pula a emissão do certificado e prossegue direto para a instalação da config completa
+
 ### Requirement: Logging de produção
 O sistema SHALL configurar logging do Gunicorn para stdout/stderr (capturado pelo journalctl) com formato contendo timestamp, nível, e mensagem. O Nginx SHALL logar acesso e erros em `/var/log/nginx/`.
 
@@ -63,8 +79,8 @@ O sistema SHALL configurar logging do Gunicorn para stdout/stderr (capturado pel
 
 ## ADDED Requirements
 
-*(nenhum)*
+*(nenhuma)*
 
 ## REMOVED Requirements
 
-*(nenhum)*
+*(nenhuma)*
