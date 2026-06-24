@@ -1,7 +1,7 @@
 import multiprocessing
 import os
 
-bind = os.environ.get("GUNICORN_BIND", "unix:/run/gunicorn.sock")
+bind = os.environ.get("GUNICORN_BIND", "unix:/run/gerenciador-jogos/gunicorn.sock")
 workers = os.environ.get("GUNICORN_WORKERS")
 if workers:
     workers = int(workers)

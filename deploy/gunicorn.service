@@ -7,7 +7,9 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/gerenciador-jogos
 EnvironmentFile=/opt/gerenciador-jogos/.env
+RuntimeDirectory=gerenciador-jogos
 
+ExecStartPre=/bin/rm -f /run/gerenciador-jogos/gunicorn.sock
 ExecStart=/opt/gerenciador-jogos/venv/bin/gunicorn -c gunicorn.conf.py wsgi:app
 
 Restart=always
