@@ -116,14 +116,9 @@ echo ">>> Gerando certificado SSL com Let's Encrypt (fase 2/3)..."
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAIN" || {
         echo ""
-        echo "    AVISO: A geração do certificado falhou."
-        echo "    Mantendo config HTTP-only para troubleshooting."
-        echo "    Execute manualmente após configurar o DNS:"
-        echo "      sudo certbot certonly --nginx -d $DOMAIN"
-        echo "      sudo cp /opt/gerenciador-jogos/deploy/nginx.conf /etc/nginx/sites-available/gerenciador-jogos"
-        echo "      sudo sed -i 's/server_name _;/server_name $DOMAIN;/g' /etc/nginx/sites-available/gerenciador-jogos"
-        echo "      sudo sed -i 's/__DOMAIN__/$DOMAIN/g' /etc/nginx/sites-available/gerenciador-jogos"
-        echo "      sudo nginx -t && sudo systemctl reload nginx"
+        echo "    AVISO: Let's Encrypt falhou. Será usado certificado self-signed."
+        echo "    Quando as portas 80/443 estiverem abertas na rede,"
+        echo "    re-execute o setup para obter um certificado Let's Encrypt válido."
         echo ""
         CERT_FAILED=1
     }
@@ -137,13 +132,28 @@ systemctl daemon-reload
 systemctl enable gerenciador-jogos
 systemctl restart gerenciador-jogos
 
+echo ">>> Instalando configuração SSL (fase 3/3)..."
 if [ -z "${CERT_FAILED:-}" ]; then
-    echo ">>> Instalando config completa com SSL (fase 3/3)..."
-    cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
-    sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
-    sed -i "s/__DOMAIN__/$DOMAIN/g" "/etc/nginx/sites-available/gerenciador-jogos"
-    nginx -t && systemctl reload nginx
+    SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+else
+    echo ">>> Gerando certificado self-signed..."
+    mkdir -p /etc/nginx/ssl
+    openssl req -x509 -nodes -days 365 \
+        -newkey rsa:2048 \
+        -keyout /etc/nginx/ssl/self-signed.key \
+        -out /etc/nginx/ssl/self-signed.crt \
+        -subj "/CN=$DOMAIN" 2>/dev/null
+    echo "    Certificado self-signed gerado em /etc/nginx/ssl/ (válido por 365 dias)."
+    SSL_CERT="/etc/nginx/ssl/self-signed.crt"
+    SSL_KEY="/etc/nginx/ssl/self-signed.key"
 fi
+
+cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
+sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
+sed -i "s|__SSL_CERT__|$SSL_CERT|g" "/etc/nginx/sites-available/gerenciador-jogos"
+sed -i "s|__SSL_KEY__|$SSL_KEY|g" "/etc/nginx/sites-available/gerenciador-jogos"
+nginx -t && systemctl reload nginx
 
 echo ">>> Configurando renovação automática do certificado..."
 if systemctl list-units --type=timer | grep -q certbot.timer; then

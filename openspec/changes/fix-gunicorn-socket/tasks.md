@@ -13,6 +13,6 @@
 
 ## 4. Testar
 
-- [ ] 4.1 No servidor: `sudo systemctl daemon-reload && sudo systemctl restart gerenciador-jogos`
-- [ ] 4.2 Confirmar que o serviço está ativo: `sudo systemctl status gerenciador-jogos` (sem crash loop)
-- [ ] 4.3 Confirmar que o socket existe: `ls -la /run/gerenciador-jogos/gunicorn.sock`
+- [x] 4.1 No servidor: `sudo systemctl daemon-reload && sudo systemctl restart gerenciador-jogos`
+- [x] 4.2 Confirmar que o serviço está ativo: `sudo systemctl status gerenciador-jogos` (sem crash loop)
+- [x] 4.3 Confirmar que o socket existe: `ls -la /run/gerenciador-jogos/gunicorn.sock`
