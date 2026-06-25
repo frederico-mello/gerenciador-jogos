@@ -37,7 +37,7 @@
 
 ## 6. Testar internamente
 
-- [ ] 6.1 Commit, pull no servidor, e re-executar `setup.sh`
-- [ ] 6.2 Confirmar que `curl -k https://localhost/` retorna a aplicação (ignorando warning SSL)
-- [ ] 6.3 Confirmar que `curl http://localhost/` redireciona para HTTPS
+- [x] 6.1 Commit, pull no servidor, e re-executar `setup.sh`
+- [x] 6.2 Confirmar que `curl -k https://localhost/` retorna a aplicação (ignorando warning SSL)
+- [x] 6.3 Confirmar que `curl http://localhost/` redireciona para HTTPS
 - [ ] 6.4 Confirmar que o site abre no browser internamente (com warning de cert self-signed)

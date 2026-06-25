@@ -169,6 +169,48 @@ cp /opt/gerenciador-jogos/instance/jogos.db /opt/gerenciador-jogos/instance/jogo
 cp /opt/gerenciador-jogos/instance/jogos.db.<data> /opt/gerenciador-jogos/instance/jogos.db
 ```
 
+### Scripts administrativos em produção
+
+Em produção, `.env`, `instance/`, e `data/` pertencem ao usuário `www-data` (configurado por `deploy/setup.sh` e usado pelo serviço Systemd do Gunicorn). **Scripts administrativos DEVEM ser invocados como `www-data`**, nunca diretamente como outro usuário.
+
+Rodar um script admin como outro usuário causa dois problemas:
+
+1. **`PermissionError` ao ler `.env`** (modo `640`, somente legível por `www-data`).
+2. **Worse**: arquivos criados pelo script (`instance/jogos.db`, conteúdo em `data/`) ficam com owner errado, e o Gunicorn (rodando como `www-data`) então quebra em produção com erro de permissão no banco ou nos arquivos.
+
+Use o wrapper `scripts/run-as-app.sh`, que executa o Python do venv como `www-data`:
+
+```bash
+cd /opt/gerenciador-jogos
+
+# Criar admin inicial (interactive)
+./scripts/run-as-app.sh scripts/create_admin.py
+
+# Inicializar banco vazio
+./scripts/run-as-app.sh scripts/init_db.py
+
+# Importar jogos do diretório de Downloads
+./scripts/run-as-app.sh scripts/import_from_downloads.py
+```
+
+Cada script tem um guarda embutido que termina com erro claro (`ERRO: este script deve ser rodado como 'www-data'...`) se invocado por outro usuário, antes de qualquer efeito colateral — então não é possível acidentalmente criar arquivos com owner errado.
+
+#### Runbook: corrigir ownership de `jogos.db` após execução acidental
+
+Se `scripts/create_admin.py` ou `scripts/init_db.py` foi executado diretamente (sem o wrapper) por outro usuário no passado, o `instance/jogos.db` pode ter owner errado. Verifique:
+
+```bash
+ls -la /opt/gerenciador-jogos/instance/jogos.db
+# Esperado: -rw-r--r-- ... www-data www-data ... jogos.db
+```
+
+Se o owner NÃO for `www-data:www-data`, corrija:
+
+```bash
+sudo chown www-data:www-data /opt/gerenciador-jogos/instance/jogos.db
+sudo systemctl restart gerenciador-jogos
+```
+
 ---
 
 ## Estrutura do Projeto

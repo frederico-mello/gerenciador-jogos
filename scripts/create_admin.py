@@ -8,10 +8,31 @@ Se o email já existir:
 - Se for outro papel → oferece promoção a admin_sistema + reset de senha.
 """
 
+import getpass
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Guarda de usuário: em produção, scripts admin DEVEM rodar como www-data
+# (dono de .env, instance/, data/) via scripts/run-as-app.sh. Falhar fast
+# aqui evita tanto o PermissionError do load_dotenv() quanto a criação de
+# arquivos (ex.: jogos.db) com owner errado, que quebrariam o Gunicorn.
+_APP_USER = "www-data"
+_SCRIPT_NAME = Path(__file__).name
+if os.name == "nt":
+    sys.stderr.write(
+        f"AVISO: rodando em Windows. Em produção, use "
+        f"'./scripts/run-as-app.sh scripts/{_SCRIPT_NAME}' (Linux). "
+        f"Em dev local Windows, prossiga apenas se souber o que faz.\n"
+    )
+elif getpass.getuser() != _APP_USER:
+    sys.exit(
+        f"ERRO: este script deve ser rodado como '{_APP_USER}' para que os "
+        f"arquivos gerados (.env, instance/, data/) tenham o owner correto. "
+        f"Use: ./scripts/run-as-app.sh scripts/{_SCRIPT_NAME}\n"
+    )
 
 from werkzeug.security import generate_password_hash
 from app import create_app
