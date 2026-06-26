@@ -50,6 +50,9 @@ def admin_client(app, client):
             "password_hash": generate_password_hash("admin123"),
             "role": "admin_sistema",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
     client.post("/login", data={"email": "admin@teste.com", "senha": "admin123"},
                 follow_redirects=True)

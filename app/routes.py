@@ -19,6 +19,22 @@ bp = Blueprint("games", __name__)
 
 ALLOWED_AREAS = ("anatomia", "histologia", "microbiologia")
 
+DDD_RANGE = range(11, 100)
+
+
+def _validate_telefone(ddd, numero):
+    """Valida DDD (2 digitos, 11-99) e numero (8-9 digitos).
+    Retorna string concatenada 'DDDnumero' ou levanta ValueError."""
+    ddd = (ddd or "").strip()
+    numero = (numero or "").strip()
+    if not ddd or not numero:
+        raise ValueError("Telefone é obrigatório.")
+    if len(ddd) != 2 or not ddd.isdigit() or int(ddd) not in DDD_RANGE:
+        raise ValueError("DDD inválido.")
+    if len(numero) < 8 or len(numero) > 9 or not numero.isdigit():
+        raise ValueError("Número de telefone inválido.")
+    return ddd + numero
+
 
 @bp.app_context_processor
 def inject_current_user():
@@ -50,6 +66,10 @@ def registrar():
         senha = request.form.get("senha") or ""
         confirmacao = request.form.get("confirmacao") or ""
         escola_id = request.form.get("escola_id") or None
+        telefone_ddd = (request.form.get("telefone_ddd") or "").strip()
+        telefone_numero = (request.form.get("telefone_numero") or "").strip()
+        whatsapp = 1 if request.form.get("whatsapp") == "1" else 0
+        consentimento = 1 if request.form.get("consentimento") == "1" else 0
 
         errors = []
         if not nome:
@@ -66,6 +86,13 @@ def registrar():
             errors.append("Senhas não conferem.")
         if not escola_id:
             errors.append("Escola é obrigatória.")
+        try:
+            telefone = _validate_telefone(telefone_ddd, telefone_numero)
+        except ValueError as e:
+            errors.append(str(e))
+            telefone = ""
+        if consentimento != 1:
+            errors.append("É necessário consentir com os termos.")
 
         if errors:
             for e in errors:
@@ -81,6 +108,9 @@ def registrar():
             "role": "usuario",
             "escola_id": int(escola_id),
             "ativo": 1,
+            "telefone": telefone,
+            "whatsapp": whatsapp,
+            "consentimento": consentimento,
         })
         flash("Conta criada! Faça login.", "success")
         return redirect(url_for("games.login"))
@@ -393,7 +423,7 @@ def admin_users():
 
 
 @bp.route("/admin/users/<int:user_id>/editar", methods=["GET", "POST"])
-@role_required("admin_sistema")
+@role_required("admin_sistema", "admin_jogos")
 def admin_users_editar(user_id):
     user = models.get_user(user_id)
     if not user:
@@ -404,6 +434,14 @@ def admin_users_editar(user_id):
         errors = []
         if not nome:
             errors.append("Nome é obrigatório.")
+        telefone_ddd = (request.form.get("telefone_ddd") or "").strip()
+        telefone_numero = (request.form.get("telefone_numero") or "").strip()
+        telefone = None
+        if telefone_ddd or telefone_numero:
+            try:
+                telefone = _validate_telefone(telefone_ddd, telefone_numero)
+            except ValueError as e:
+                errors.append(str(e))
         if errors:
             for e in errors:
                 flash(e, "error")
@@ -411,6 +449,8 @@ def admin_users_editar(user_id):
                                    form=request.form), 400
 
         data = {"nome": nome}
+        if telefone is not None:
+            data["telefone"] = telefone
         email = request.form.get("email") or None
         if email:
             data["email"] = email
@@ -425,12 +465,20 @@ def admin_users_editar(user_id):
         ativo = request.form.get("ativo")
         if ativo is not None:
             data["ativo"] = 1 if ativo == "1" else 0
+        whatsapp = 1 if request.form.get("whatsapp") == "1" else 0
+        data["whatsapp"] = whatsapp
+        consentimento = 1 if request.form.get("consentimento") == "1" else 0
+        data["consentimento"] = consentimento
 
         models.update_user(user_id, data)
         flash(f"Usuário '{nome}' atualizado.", "success")
         return redirect(url_for("games.admin_users"))
 
-    return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False), form={})
+    form = dict(user)
+    t = form.get("telefone") or ""
+    form["telefone_ddd"] = t[:2] if len(t) >= 2 else ""
+    form["telefone_numero"] = t[2:] if len(t) > 2 else ""
+    return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False), form=form)
 
 
 @bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
@@ -470,6 +518,8 @@ def admin_users_criar():
         role = request.form.get("role") or "usuario"
         escola_id = request.form.get("escola_id") or None
         ativo = 1 if request.form.get("ativo") == "1" else 0
+        whatsapp = 1 if request.form.get("whatsapp") == "1" else 0
+        consentimento = 1 if request.form.get("consentimento") == "1" else 0
 
         errors = []
         if not nome:
@@ -486,6 +536,14 @@ def admin_users_criar():
             errors.append("Senhas não conferem.")
         if role not in ("admin_sistema", "admin_jogos", "usuario"):
             errors.append("Papel inválido.")
+        try:
+            telefone = _validate_telefone(
+                request.form.get("telefone_ddd"),
+                request.form.get("telefone_numero"),
+            )
+        except ValueError as e:
+            errors.append(str(e))
+            telefone = ""
 
         if errors:
             for e in errors:
@@ -502,6 +560,9 @@ def admin_users_criar():
             "role": role,
             "escola_id": int(escola_id) if escola_id else None,
             "ativo": ativo,
+            "telefone": telefone,
+            "whatsapp": whatsapp,
+            "consentimento": consentimento,
         })
         flash(f"Usuário '{nome}' criado com papel {role}.", "success")
         return redirect(url_for("games.admin_users"))
@@ -901,6 +962,8 @@ def perfil():
         nome = (request.form.get("nome") or "").strip()
         email = (request.form.get("email") or "").strip()
         receber_emails = 1 if request.form.get("receber_emails") == "1" else 0
+        whatsapp = 1 if request.form.get("whatsapp") == "1" else 0
+        consentimento = 1 if request.form.get("consentimento") == "1" else 0
         errors = []
         if not nome:
             errors.append("Nome é obrigatório.")
@@ -908,12 +971,23 @@ def perfil():
             errors.append("Email é obrigatório.")
         elif email != user["email"] and models.get_user_by_email(email):
             errors.append("Email já cadastrado.")
+        telefone_ddd = (request.form.get("telefone_ddd") or "").strip()
+        telefone_numero = (request.form.get("telefone_numero") or "").strip()
+        telefone = None
+        if telefone_ddd or telefone_numero:
+            try:
+                telefone = _validate_telefone(telefone_ddd, telefone_numero)
+            except ValueError as e:
+                errors.append(str(e))
         if errors:
             for e in errors:
                 flash(e, "error")
             return render_template("perfil.html", form=request.form), 400
 
-        data = {"nome": nome, "email": email, "receber_emails": receber_emails}
+        data = {"nome": nome, "email": email, "receber_emails": receber_emails,
+                "whatsapp": whatsapp, "consentimento": consentimento}
+        if telefone is not None:
+            data["telefone"] = telefone
         senha = request.form.get("senha") or ""
         if senha:
             if len(senha) < 4:
@@ -924,7 +998,11 @@ def perfil():
         models.update_user(user["id"], data)
         flash("Perfil atualizado.", "success")
         return redirect(url_for("games.perfil"))
-    return render_template("perfil.html", form=dict(user))
+    form = dict(user)
+    t = form.get("telefone") or ""
+    form["telefone_ddd"] = t[:2] if len(t) >= 2 else ""
+    form["telefone_numero"] = t[2:] if len(t) > 2 else ""
+    return render_template("perfil.html", form=form)
 
 
 @bp.route("/media/<path:filename>")

@@ -97,6 +97,9 @@ def main():
             "password_hash": generate_password_hash(senha),
             "role": "admin_sistema",
             "ativo": 1,
+            "telefone": "",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
         print(f"Admin criado: {email} (ID: {user_id})")
 

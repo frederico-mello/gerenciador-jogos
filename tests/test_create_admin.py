@@ -15,6 +15,9 @@ def test_create_new_admin(app):
             "password_hash": generate_password_hash("senha123"),
             "role": "admin_sistema",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
 
         user = get_user_by_email("novo@admin.com")
@@ -37,6 +40,9 @@ def test_reset_admin_password(app):
             "password_hash": old_hash,
             "role": "admin_sistema",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
 
         update_user(get_user_by_email("admin@reset.com")["id"], {"senha": "nova456"})
@@ -57,6 +63,9 @@ def test_promote_usuario_to_admin(app):
             "password_hash": generate_password_hash("comum123"),
             "role": "usuario",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
 
         update_user(
@@ -81,6 +90,9 @@ def test_promote_admin_jogos_to_admin(app):
             "password_hash": generate_password_hash("jogos123"),
             "role": "admin_jogos",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
 
         update_user(
@@ -106,6 +118,9 @@ def test_cancel_does_not_alter_data(app):
             "password_hash": original_hash,
             "role": "admin_sistema",
             "ativo": 1,
+            "telefone": "11999998888",
+            "whatsapp": 0,
+            "consentimento": 0,
         })
 
         user = get_user_by_email("nao@mexer.com")
