@@ -1,5 +1,6 @@
 """Rotas Flask para o gerenciador de jogos."""
 
+import hashlib
 import shutil
 from pathlib import Path
 
@@ -18,6 +19,29 @@ from .db import init_db, get_db
 bp = Blueprint("games", __name__)
 
 ALLOWED_AREAS = ("anatomia", "histologia", "microbiologia")
+
+TERMS_PATH = Path(__file__).parent.parent / "terms_emprestimo.md"
+
+_terms_cache = None
+
+
+def load_loan_terms():
+    global _terms_cache
+    if _terms_cache is not None:
+        return _terms_cache
+
+    if TERMS_PATH.is_file():
+        raw = TERMS_PATH.read_text(encoding="utf-8")
+        html = markdown.markdown(raw, extensions=["extra"])
+        versao = hashlib.sha256(raw.encode()).hexdigest()[:8]
+    else:
+        import logging
+        logging.getLogger(__name__).warning("terms_emprestimo.md não encontrado.")
+        html = "<p>Termos de uso não configurados. Entre em contato com o administrador.</p>"
+        versao = "fallback"
+
+    _terms_cache = (html, versao)
+    return _terms_cache
 
 
 @bp.app_context_processor
@@ -541,7 +565,8 @@ def confirmar_fila(game_id):
     if not game:
         abort(404)
     queue_count = models.count_queue(game_id)
-    return render_template("confirmar_fila.html", game=game, queue_count=queue_count)
+    termos_html, _ = load_loan_terms()
+    return render_template("confirmar_fila.html", game=game, queue_count=queue_count, termos_html=termos_html)
 
 
 @bp.route("/emprestimos/fila/entrar/<int:game_id>", methods=["POST"])
@@ -551,6 +576,14 @@ def entrar_fila(game_id):
     if not game:
         abort(404)
     user = current_user()
+
+    aceite = request.form.get("aceite_termos")
+    if aceite != "1":
+        queue_count = models.count_queue(game_id)
+        termos_html, _ = load_loan_terms()
+        flash("Você precisa aceitar os termos de empréstimo.", "error")
+        return render_template("confirmar_fila.html", game=game, queue_count=queue_count, termos_html=termos_html), 400
+
     models.add_to_queue(game_id, user["id"])
     flash("Você entrou na fila de reserva.", "success")
     return redirect(url_for("games.index"))
@@ -642,6 +675,35 @@ def _validate_loan_transition(loan, target_status):
     return True
 
 
+@bp.route("/emprestimos/solicitar/<int:game_id>", methods=["GET"])
+@login_required
+def solicitar_emprestimo_form(game_id):
+    game = models.get_game(game_id)
+    if not game:
+        abort(404)
+
+    user = current_user()
+
+    if models.user_has_active_loan(user["id"], game_id):
+        flash("Você já possui uma solicitação ou empréstimo ativo para este jogo.", "error")
+        return redirect(url_for("games.emprestimos"))
+
+    status, _ = models.get_game_availability(game_id)
+    if status != "disponivel":
+        flash("Jogo indisponível no momento.", "error")
+        return redirect(url_for("games.confirmar_fila", game_id=game_id))
+
+    from datetime import date, timedelta
+    devolucao_prevista_default = (date.today() + timedelta(days=7)).isoformat()
+
+    termos_html, termos_versao = load_loan_terms()
+
+    return render_template("solicitar_emprestimo.html", game=game,
+                           availability_status=status,
+                           devolucao_prevista_default=devolucao_prevista_default,
+                           termos_html=termos_html)
+
+
 @bp.route("/emprestimos/solicitar/<int:game_id>", methods=["POST"])
 @login_required
 def solicitar_emprestimo(game_id):
@@ -657,15 +719,31 @@ def solicitar_emprestimo(game_id):
 
     status, _ = models.get_game_availability(game_id)
     if status != "disponivel":
-        # Offer queue entry instead of just rejecting
         flash("Jogo indisponível no momento.", "error")
         return redirect(url_for("games.confirmar_fila", game_id=game_id))
+
+    aceite = request.form.get("aceite_termos")
+    if aceite != "1":
+        from datetime import date, timedelta
+        devolucao_prevista_default = request.form.get("devolucao_prevista") or (date.today() + timedelta(days=7)).isoformat()
+        termos_html, termos_versao = load_loan_terms()
+        flash("Você precisa aceitar os termos de empréstimo.", "error")
+        return render_template("solicitar_emprestimo.html", game=game,
+                               availability_status=status,
+                               devolucao_prevista_default=devolucao_prevista_default,
+                               termos_html=termos_html), 400
+
     devolucao_prevista = request.form.get("devolucao_prevista") or ""
     if not devolucao_prevista:
         from datetime import date, timedelta
         devolucao_prevista = (date.today() + timedelta(days=7)).isoformat()
 
-    models.create_loan(game_id, user["id"], devolucao_prevista)
+    from datetime import datetime as dt
+    termos_html, termos_versao = load_loan_terms()
+    termos_aceite_at = dt.now().isoformat(timespec="seconds")
+
+    models.create_loan(game_id, user["id"], devolucao_prevista,
+                       termos_aceite_at=termos_aceite_at, termos_versao=termos_versao)
     flash("Solicitação enviada.", "success")
     return redirect(url_for("games.emprestimos"))
 

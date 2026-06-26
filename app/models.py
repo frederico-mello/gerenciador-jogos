@@ -306,12 +306,13 @@ def user_has_active_loan(user_id, game_id):
     return loan is not None
 
 
-def create_loan(game_id, user_id, devolucao_prevista):
+def create_loan(game_id, user_id, devolucao_prevista, termos_aceite_at=None, termos_versao=None):
     db = get_db()
     cur = db.execute(
-        """INSERT INTO loans (game_id, user_id, status, devolucao_prevista, solicitado_at)
-           VALUES (?, ?, 'solicitado', ?, ?)""",
-        (game_id, user_id, devolucao_prevista, datetime.now().isoformat(timespec="seconds")),
+        """INSERT INTO loans (game_id, user_id, status, devolucao_prevista, solicitado_at, termos_aceite_at, termos_versao)
+           VALUES (?, ?, 'solicitado', ?, ?, ?, ?)""",
+        (game_id, user_id, devolucao_prevista, datetime.now().isoformat(timespec="seconds"),
+         termos_aceite_at, termos_versao),
     )
     loan_id = cur.lastrowid
     add_status_history(loan_id, None, "solicitado", user_id)

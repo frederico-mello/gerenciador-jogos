@@ -7,22 +7,30 @@ TBD — Subsistema de empréstimos com 5 estados (solicitado, reservado, emprest
 ## Requirements
 
 ### Requirement: Tabelas loans e loan_status_history
-O sistema SHALL manter duas novas tabelas em SQLite: `loans` (empréstimos) e `loan_status_history` (auditoria de mudanças de status). A tabela `loans` contém: `id` (PK), `game_id` (FK → games), `user_id` (FK → users), `status` (CHECK em 'solicitado', 'reservado', 'emprestado', 'devolvido', 'cancelado'), `devolucao_prevista` (DATE), `renovacao_pendente` (INTEGER DEFAULT 0), `nova_devolucao_prevista` (DATE), `observacoes` (TEXT), `solicitado_at`, `reservado_at`, `emprestado_at`, `devolvido_at`, `created_at`, `updated_at`. A tabela `loan_status_history` contém: `id` (PK), `loan_id` (FK → loans ON DELETE CASCADE), `status_anterior`, `status_novo`, `changed_by` (FK → users), `changed_at`, `observacao`.
+O sistema SHALL manter duas novas tabelas em SQLite: `loans` (empréstimos) e `loan_status_history` (auditoria de mudanças de status). A tabela `loans` contém: `id` (PK), `game_id` (FK → games), `user_id` (FK → users), `status` (CHECK em 'solicitado', 'reservado', 'emprestado', 'devolvido', 'cancelado'), `devolucao_prevista` (DATE), `renovacao_pendente` (INTEGER DEFAULT 0), `nova_devolucao_prevista` (DATE), `observacoes` (TEXT), `solicitado_at`, `reservado_at`, `emprestado_at`, `devolvido_at`, `termos_aceite_at` (TEXT, timestamp ISO 8601 do aceite), `termos_versao` (TEXT, hash dos termos aceitos), `created_at`, `updated_at`. A tabela `loan_status_history` contém: `id` (PK), `loan_id` (FK → loans ON DELETE CASCADE), `status_anterior`, `status_novo`, `changed_by` (FK → users), `changed_at`, `observacao`.
 
 #### Scenario: Loan criado com solicitado_at
 - **WHEN** um usuário solicita um empréstimo via `POST /emprestimos/solicitar/<game_id>`
-- **THEN** uma nova linha em `loans` é criada com `status='solicitado'`, `solicitado_at` preenchido, e uma linha em `loan_status_history` registra `status_anterior=NULL`, `status_novo='solicitado'`, `changed_by=<user_id>`
+- **THEN** uma nova linha em `loans` é criada com `status='solicitado'`, `solicitado_at` preenchido, `termos_aceite_at` preenchido, `termos_versao` preenchido, e uma linha em `loan_status_history` registra `status_anterior=NULL`, `status_novo='solicitado'`, `changed_by=<user_id>`
 
 #### Scenario: Histórico registra cada transição
 - **WHEN** um empréstimo muda de `solicitado` para `reservado`
 - **THEN** uma nova linha em `loan_status_history` é criada com `status_anterior='solicitado'`, `status_novo='reservado'`, `changed_by=<admin_id>`, `changed_at` preenchido
 
 ### Requirement: Solicitação de empréstimo pelo usuário
-O sistema SHALL permitir que um `usuario` logado solicite um empréstimo via `POST /emprestimos/solicitar/<game_id>`. O form contém o campo `devolucao_prevista` (default hoje + 7 dias, usuário pode alterar). **Se o jogo já possui um empréstimo ativo, o sistema pergunta se o usuário deseja entrar na fila de reserva. Se sim, cria uma entrada em `reservation_queue` com a próxima posição disponível. Se o usuário já possui um empréstimo ativo (solicitado, reservado ou emprestado) para o mesmo jogo, o sistema rejeita a solicitação com mensagem "Você já possui uma solicitação ou empréstimo ativo para este jogo".**
+O sistema SHALL permitir que um `usuario` logado solicite um empréstimo. A solicitação requer duas etapas: (1) `GET /emprestimos/solicitar/<game_id>` exibe tela dedicada com termos de uso, campo de devolução prevista e checkbox de aceite; (2) `POST /emprestimos/solicitar/<game_id>` com `aceite_termos=1` e `devolucao_prevista` cria o empréstimo. O campo `devolucao_prevista` tem default hoje + 7 dias, editável pelo usuário. **Se o jogo já possui um empréstimo ativo, o sistema pergunta se o usuário deseja entrar na fila de reserva. Se sim, cria uma entrada em `reservation_queue` com a próxima posição disponível. Se o usuário já possui um empréstimo ativo (solicitado, reservado ou emprestado) para o mesmo jogo, o sistema rejeita a solicitação com mensagem "Você já possui uma solicitação ou empréstimo ativo para este jogo".**
 
 #### Scenario: Solicitação válida
-- **WHEN** um `usuario` logado envia `POST /emprestimos/solicitar/5` com `devolucao_prevista = 2026-07-15`
-- **THEN** um novo loan é criado com `game_id=5`, `user_id=<id do usuario>`, `status='solicitado'`, `solicitado_at` preenchido, e o usuário é redirecionado para `/emprestimos` com mensagem "Solicitação enviada"
+- **WHEN** um `usuario` logado envia `POST /emprestimos/solicitar/5` com `devolucao_prevista = 2026-07-15` e `aceite_termos = 1`
+- **THEN** um novo loan é criado com `game_id=5`, `user_id=<id do usuario>`, `status='solicitado'`, `solicitado_at` preenchido, `termos_aceite_at` preenchido, `termos_versao` preenchido, e o usuário é redirecionado para `/emprestimos` com mensagem "Solicitação enviada"
+
+#### Scenario: Solicitação sem aceite
+- **WHEN** um `usuario` logado envia `POST /emprestimos/solicitar/5` sem `aceite_termos = 1`
+- **THEN** o sistema reexibe a tela de solicitação com mensagem de erro "Você precisa aceitar os termos de empréstimo."
+
+#### Scenario: Tela de solicitação exibe termos e dados
+- **WHEN** um `usuario` logado acessa `GET /emprestimos/solicitar/5`
+- **THEN** a página exibe o nome do jogo, termos de empréstimo renderizados, campo de data com default +7 dias, e checkbox "Li e aceito os termos"
 
 #### Scenario: Entrar na fila quando indisponível
 - **WHEN** um `usuario` tenta solicitar um jogo já emprestado

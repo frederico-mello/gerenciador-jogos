@@ -19,10 +19,7 @@
       {% elif current_user and current_user.role == 'usuario' %}
         {% if not user_has_active_loan %}
           {% if availability_status == 'disponivel' %}
-            <form method="post" action="{{ url_for('games.solicitar_emprestimo', game_id=game.id) }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn btn-primary">Solicitar Empréstimo</button>
-            </form>
+            <a class="btn btn-primary" href="{{ url_for('games.solicitar_emprestimo_form', game_id=game.id) }}">Solicitar Empréstimo</a>
           {% else %}
             <a class="btn btn-secondary" href="{{ url_for('games.confirmar_fila', game_id=game.id) }}">Entrar na fila</a>
           {% endif %}
