@@ -306,12 +306,12 @@ def user_has_active_loan(user_id, game_id):
     return loan is not None
 
 
-def create_loan(game_id, user_id, devolucao_prevista):
+def create_loan(game_id, user_id, devolucao_prevista, pickup_slot_id=None):
     db = get_db()
     cur = db.execute(
-        """INSERT INTO loans (game_id, user_id, status, devolucao_prevista, solicitado_at)
-           VALUES (?, ?, 'solicitado', ?, ?)""",
-        (game_id, user_id, devolucao_prevista, datetime.now().isoformat(timespec="seconds")),
+        """INSERT INTO loans (game_id, user_id, status, devolucao_prevista, pickup_slot_id, solicitado_at)
+           VALUES (?, ?, 'solicitado', ?, ?, ?)""",
+        (game_id, user_id, devolucao_prevista, pickup_slot_id, datetime.now().isoformat(timespec="seconds")),
     )
     loan_id = cur.lastrowid
     add_status_history(loan_id, None, "solicitado", user_id)
@@ -328,8 +328,12 @@ def list_loans_by_user(user_id, page=1, per_page=30):
 
 
 def _list_loans_paginated(where_clause, params, page=1, per_page=30):
-    base_sql = """SELECT l.*, g.nome AS game_nome, g.area AS game_area, u.nome AS user_nome
-                  FROM loans l JOIN games g ON l.game_id = g.id JOIN users u ON l.user_id = u.id"""
+    base_sql = """SELECT l.*, g.nome AS game_nome, g.area AS game_area, u.nome AS user_nome,
+                         ps.dia_semana AS slot_dia_semana, ps.hora AS slot_hora, ps.ativo AS slot_ativo
+                  FROM loans l
+                  JOIN games g ON l.game_id = g.id
+                  JOIN users u ON l.user_id = u.id
+                  LEFT JOIN pickup_slots ps ON l.pickup_slot_id = ps.id"""
     count_sql = "SELECT COUNT(*) AS total FROM loans l JOIN games g ON l.game_id = g.id JOIN users u ON l.user_id = u.id"
 
     where = " WHERE " + where_clause if where_clause else ""
@@ -561,6 +565,87 @@ def get_loan_history(game_id):
            WHERE l.game_id = ? ORDER BY l.created_at DESC""",
         (game_id,),
     ).fetchall()
+
+
+_DIA_SEMANA_NOMES = {
+    0: "Segunda-feira",
+    1: "Terca-feira",
+    2: "Quarta-feira",
+    3: "Quinta-feira",
+    4: "Sexta-feira",
+    5: "Sabado",
+    6: "Domingo",
+}
+
+
+def format_pickup_slot(slot):
+    if not slot:
+        return ""
+    dia = slot.get("dia_semana") if isinstance(slot, dict) else getattr(slot, "dia_semana", None)
+    hora = slot.get("hora") if isinstance(slot, dict) else getattr(slot, "hora", None)
+    if dia is None or hora is None:
+        return "—"
+    nome_dia = _DIA_SEMANA_NOMES.get(dia, str(dia))
+    return f"{nome_dia}, {hora}"
+
+
+def list_pickup_slots(ativo_only=False):
+    sql = "SELECT * FROM pickup_slots"
+    params = []
+    if ativo_only:
+        sql += " WHERE ativo = 1"
+    sql += " ORDER BY dia_semana, hora"
+    return get_db().execute(sql, params).fetchall()
+
+
+def get_pickup_slot(slot_id):
+    return get_db().execute("SELECT * FROM pickup_slots WHERE id = ?", (slot_id,)).fetchone()
+
+
+def create_pickup_slot(dia_semana, hora):
+    existing = get_db().execute(
+        "SELECT id FROM pickup_slots WHERE dia_semana = ? AND hora = ? AND ativo = 1",
+        (dia_semana, hora),
+    ).fetchone()
+    if existing:
+        return None
+    db = get_db()
+    cur = db.execute(
+        "INSERT INTO pickup_slots (dia_semana, hora) VALUES (?, ?)",
+        (dia_semana, hora),
+    )
+    db.commit()
+    return cur.lastrowid
+
+
+def update_pickup_slot(slot_id, data):
+    existing = get_db().execute(
+        "SELECT id FROM pickup_slots WHERE dia_semana = ? AND hora = ? AND ativo = 1 AND id != ?",
+        (data["dia_semana"], data["hora"], slot_id),
+    ).fetchone()
+    if existing:
+        return False
+    db = get_db()
+    fields, params = [], []
+    for key in ("dia_semana", "hora"):
+        if key in data and data[key] is not None:
+            fields.append(f"{key} = ?")
+            params.append(data[key])
+    fields.append("updated_at = ?")
+    params.append(datetime.now().isoformat(timespec="seconds"))
+    params.append(slot_id)
+    db.execute(f"UPDATE pickup_slots SET {', '.join(fields)} WHERE id = ?", params)
+    db.commit()
+    return True
+
+
+def set_pickup_slot_ativo(slot_id, ativo):
+    db = get_db()
+    db.execute(
+        "UPDATE pickup_slots SET ativo = ?, updated_at = ? WHERE id = ?",
+        (ativo, datetime.now().isoformat(timespec="seconds"), slot_id),
+    )
+    db.commit()
 
 
 def upsert_game_by_area_nome(area, nome, data, manual_paths=None):

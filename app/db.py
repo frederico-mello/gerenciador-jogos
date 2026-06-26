@@ -37,6 +37,11 @@ def init_db(db_path):
             conn.commit()
         except sqlite3.OperationalError:
             conn.rollback()
+        try:
+            conn.execute("ALTER TABLE loans ADD COLUMN pickup_slot_id INTEGER REFERENCES pickup_slots(id)")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
     finally:
         conn.close()
 

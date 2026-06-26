@@ -74,8 +74,10 @@ CREATE TABLE IF NOT EXISTS loans (
     devolvido_at          TEXT,
     created_at            TEXT DEFAULT (datetime('now','localtime')),
     updated_at            TEXT DEFAULT (datetime('now','localtime')),
+    pickup_slot_id        INTEGER,
     FOREIGN KEY (game_id) REFERENCES games(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (pickup_slot_id) REFERENCES pickup_slots(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_loans_game ON loans(game_id);
@@ -107,3 +109,14 @@ CREATE TABLE IF NOT EXISTS reservation_queue (
 );
 
 CREATE INDEX IF NOT EXISTS idx_queue_game ON reservation_queue(game_id);
+
+CREATE TABLE IF NOT EXISTS pickup_slots (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    dia_semana INTEGER NOT NULL CHECK (dia_semana BETWEEN 0 AND 6),
+    hora       TEXT NOT NULL CHECK (hora GLOB '[0-2][0-9]:[0-5][0-9]'),
+    ativo      INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pickup_slots_ativo ON pickup_slots(ativo);

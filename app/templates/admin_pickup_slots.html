@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Horarios de Retirada — {{ super() }}{% endblock %}
+{% block content %}
+<h1>Horarios de Retirada</h1>
+
+<div class="toolbar">
+  <a class="btn btn-primary" href="{{ url_for('games.admin_pickup_slots_criar') }}">Novo horario</a>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Dia</th>
+      <th>Hora</th>
+      <th>Ativo</th>
+      <th>Acoes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for slot in slots %}
+    {% set dias = {0: 'Segunda-feira', 1: 'Terca-feira', 2: 'Quarta-feira', 3: 'Quinta-feira', 4: 'Sexta-feira', 5: 'Sabado', 6: 'Domingo'} %}
+    <tr>
+      <td>{{ dias.get(slot.dia_semana, slot.dia_semana) }}</td>
+      <td>{{ slot.hora }}</td>
+      <td>{{ 'Sim' if slot.ativo else 'Nao' }}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="{{ url_for('games.admin_pickup_slots_editar', slot_id=slot.id) }}">Editar</a>
+        {% if slot.ativo %}
+        <form method="post" action="{{ url_for('games.admin_pickup_slots_inativar', slot_id=slot.id) }}" style="display:inline">
+          <button class="btn btn-sm btn-danger" type="submit">Inativar</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('games.admin_pickup_slots_reativar', slot_id=slot.id) }}" style="display:inline">
+          <button class="btn btn-sm" type="submit">Reativar</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

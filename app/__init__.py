@@ -55,6 +55,12 @@ def create_app(test_config=None):
     from . import routes
     app.register_blueprint(routes.bp)
 
+    from .models import format_pickup_slot
+
+    @app.template_filter("formatar_slot")
+    def jinja_format_pickup_slot(slot):
+        return format_pickup_slot(slot)
+
     @app.after_request
     def add_security_headers(response):
         response.headers.set("X-Content-Type-Options", "nosniff")

@@ -57,6 +57,7 @@
           <th>Área</th>
           <th>Usuário</th>
           <th>Status</th>
+          <th>Horario de retirada</th>
           <th>Devolução prevista</th>
           <th>Renovação</th>
           <th>Ações</th>
@@ -73,6 +74,13 @@
               <span class="badge badge-{{ status_cor.get(loan.status, 'gray') }}">{{ loan.status }}</span>
               {% if loan.status == 'emprestado' and loan.devolucao_prevista and loan.devolucao_prevista < hoje %}
                 <span class="badge badge-darkred">ATRASADO</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if loan.slot_dia_semana is not none and loan.slot_hora %}
+                {{ dict(dia_semana=loan.slot_dia_semana, hora=loan.slot_hora) | formatar_slot }}
+              {% else %}
+                —
               {% endif %}
             </td>
             <td>{{ loan.devolucao_prevista or '-' }}</td>

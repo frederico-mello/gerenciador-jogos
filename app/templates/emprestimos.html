@@ -17,6 +17,7 @@
           <th>Jogo</th>
           <th>Área</th>
           <th>Status</th>
+          <th>Horario de retirada</th>
           <th>Devolução prevista</th>
           <th>Ações</th>
         </tr>
@@ -34,6 +35,13 @@
               {% endif %}
               {% if loan.renovacao_pendente %}
                 <span class="badge badge-yellow">Renovação solicitada</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if loan.slot_dia_semana is not none and loan.slot_hora %}
+                {{ dict(dia_semana=loan.slot_dia_semana, hora=loan.slot_hora) | formatar_slot }}
+              {% else %}
+                —
               {% endif %}
             </td>
             <td>{{ loan.devolucao_prevista or '-' }}</td>
