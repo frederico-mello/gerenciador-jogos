@@ -219,8 +219,9 @@ def create_user(data):
     """
     db = get_db()
     cur = db.execute(
-        """INSERT INTO users (nome, email, password_hash, role, escola_id, ativo)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO users (nome, email, password_hash, role, escola_id, ativo,
+           telefone, whatsapp, consentimento)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             data["nome"],
             data["email"],
@@ -228,6 +229,9 @@ def create_user(data):
             data.get("role", "usuario"),
             data.get("escola_id"),
             data.get("ativo", 1),
+            data.get("telefone", ""),
+            data.get("whatsapp", 0),
+            data.get("consentimento", 0),
         ),
     )
     user_id = cur.lastrowid
@@ -241,7 +245,8 @@ def update_user(user_id, data):
     """
     db = get_db()
     fields, params = [], []
-    for key in ("nome", "email", "role", "escola_id", "ativo", "receber_emails"):
+    for key in ("nome", "email", "role", "escola_id", "ativo", "receber_emails",
+                "telefone", "whatsapp", "consentimento"):
         if key in data and data[key] is not None:
             fields.append(f"{key} = ?")
             params.append(data[key])
@@ -273,7 +278,7 @@ def set_user_ativo(user_id, ativo):
 
 def list_users(role=None, escola_id=None, ativo_only=True):
     """Lista usuários, opcionalmente filtrados por role, escola e ativo."""
-    sql = "SELECT id, nome, email, role, escola_id, ativo, created_at, updated_at FROM users"
+    sql = "SELECT id, nome, email, role, escola_id, ativo, telefone, whatsapp, created_at, updated_at FROM users"
     clauses, params = [], []
     if role:
         clauses.append("role = ?")

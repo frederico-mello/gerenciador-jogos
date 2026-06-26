@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS users (
     escola_id     INTEGER,
     ativo         INTEGER DEFAULT 1,
     receber_emails INTEGER DEFAULT 0,
+    telefone      TEXT NOT NULL,
+    whatsapp      INTEGER DEFAULT 0,
+    consentimento INTEGER DEFAULT 0,
     created_at    TEXT DEFAULT (datetime('now', 'localtime')),
     updated_at    TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (escola_id) REFERENCES schools(id)

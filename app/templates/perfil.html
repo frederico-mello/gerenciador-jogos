@@ -17,6 +17,25 @@
       <input id="senha" name="senha" type="password" />
     </div>
     <div class="field">
+      <label>Telefone</label>
+      <div style="display:flex; gap:0.5rem;">
+        <input type="text" name="telefone_ddd" placeholder="DDD" maxlength="2" pattern="\d{2}" value="{{ form.telefone_ddd or '' }}" style="width:5ch;" />
+        <input type="text" name="telefone_numero" placeholder="Número" maxlength="9" pattern="\d{8,9}" value="{{ form.telefone_numero or '' }}" style="flex:1;" />
+      </div>
+    </div>
+    <div class="field">
+      <label>
+        <input type="checkbox" name="whatsapp" value="1" {% if form.whatsapp %}checked{% endif %} />
+        Este número é WhatsApp
+      </label>
+    </div>
+    <div class="field">
+      <label>
+        <input type="checkbox" name="consentimento" value="1" {% if form.consentimento %}checked{% endif %} />
+        Autorizo o tratamento dos meus dados pessoais conforme a LGPD.
+      </label>
+    </div>
+    <div class="field">
       <label>
         <input type="checkbox" name="receber_emails" value="1" {% if form.receber_emails %}checked{% endif %} />
         Receber notificações por email

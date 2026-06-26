@@ -37,6 +37,21 @@ def init_db(db_path):
             conn.commit()
         except sqlite3.OperationalError:
             conn.rollback()
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN telefone TEXT NOT NULL DEFAULT ''")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN whatsapp INTEGER DEFAULT 0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN consentimento INTEGER DEFAULT 0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
     finally:
         conn.close()
 
