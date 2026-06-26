@@ -40,8 +40,13 @@ O sistema SHALL suportar manuais com múltiplas páginas, armazenadas na tabela 
 - **WHEN** um jogo com manuais é excluído
 - **THEN** todas as linhas em `game_manual_pages` com o `game_id` correspondente são removidas automaticamente por cascade
 
-### Requirement: Filtro por área e busca por nome
-O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto no nome, via query string `?area=<area>&q=<texto>`.
+### Requirement: Filtro por área e busca textual
+O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto nos campos `nome`, `descricao` e `regras_resumo`, via query string `?area=<area>&q=<texto>`.
+
+A busca SHALL ser:
+- **Insensível a acentos**: uma consulta digitada sem acento (ex.: "mucosa") deve encontrar registros que contenham o termo com ou sem acento (ex.: "mucósa").
+- **Multi-termo com lógica AND**: quando `q` contiver múltiplas palavras separadas por espaço, todas devem aparecer em pelo menos um dos campos pesquisados (nome, descricao ou regras_resumo), em qualquer ordem.
+- **Insensível a maiúsculas/minúsculas**: a comparação deve ignorar capitalização.
 
 #### Scenario: Filtro por área
 - **WHEN** o usuário acessa `GET /?area=anatomia`
@@ -51,9 +56,25 @@ O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto n
 - **WHEN** o usuário acessa `GET /?q=memotomia`
 - **THEN** apenas jogos cujo `nome` contém "memotomia" (case-insensitive) são listados
 
+#### Scenario: Busca por texto na descrição
+- **WHEN** o usuário acessa `GET /?q=mitose`
+- **THEN** jogos cujo campo `descricao` ou `regras_resumo` contém "mitose" são listados, mesmo que o termo não apareça no `nome`
+
+#### Scenario: Busca insensível a acentos na descrição
+- **WHEN** o usuário acessa `GET /?q=mucosa`
+- **THEN** jogos cujo campo `descricao` contém "mucósa" (com acento) são listados
+
+#### Scenario: Busca insensível a acentos no nome
+- **WHEN** o usuário acessa `GET /?q=joao`
+- **THEN** jogos cujo `nome` contém "João" são listados
+
+#### Scenario: Busca com múltiplos termos
+- **WHEN** o usuário acessa `GET /?q=anatomia celula`
+- **THEN** apenas jogos que contenham tanto "anatomia" quanto "celula" (em qualquer combinação dos campos nome, descricao ou regras_resumo) são listados
+
 #### Scenario: Filtro combinado
 - **WHEN** o usuário acessa `GET /?area=histologia&q=celula`
-- **THEN** apenas jogos de histologia cujo nome contém "celula" são listados
+- **THEN** apenas jogos de histologia cujo nome, descricao ou regras_resumo contêm "celula" são listados
 
 ### Requirement: Validação de campos obrigatórios
 O sistema SHALL validar que `nome` e `area` são obrigatórios no form de criar/editar. `area` deve ser um dos três valores permitidos.
