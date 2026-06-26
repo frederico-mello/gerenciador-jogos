@@ -2,6 +2,8 @@
 
 from werkzeug.security import check_password_hash
 
+from conftest import TEST_PASSWORD
+
 
 def test_create_new_admin(app):
     """Criar um admin novo quando o email não existe."""
@@ -12,7 +14,7 @@ def test_create_new_admin(app):
         user_id = create_user({
             "nome": "Novo Admin",
             "email": "novo@admin.com",
-            "password_hash": generate_password_hash("senha123"),
+            "password_hash": generate_password_hash(TEST_PASSWORD),
             "role": "admin_sistema",
             "ativo": 1,
         })
@@ -30,7 +32,7 @@ def test_reset_admin_password(app):
         from app.models import get_user_by_email, create_user, update_user
         from werkzeug.security import generate_password_hash
 
-        old_hash = generate_password_hash("velha123")
+        old_hash = generate_password_hash(TEST_PASSWORD)
         create_user({
             "nome": "Admin Existente",
             "email": "admin@reset.com",
@@ -54,7 +56,7 @@ def test_promote_usuario_to_admin(app):
         create_user({
             "nome": "Usuario Comum",
             "email": "comum@promover.com",
-            "password_hash": generate_password_hash("comum123"),
+            "password_hash": generate_password_hash(TEST_PASSWORD),
             "role": "usuario",
             "ativo": 1,
         })
@@ -78,7 +80,7 @@ def test_promote_admin_jogos_to_admin(app):
         create_user({
             "nome": "Admin Jogos",
             "email": "jogos@promover.com",
-            "password_hash": generate_password_hash("jogos123"),
+            "password_hash": generate_password_hash(TEST_PASSWORD),
             "role": "admin_jogos",
             "ativo": 1,
         })
@@ -99,7 +101,7 @@ def test_cancel_does_not_alter_data(app):
         from app.models import get_user_by_email, create_user
         from werkzeug.security import generate_password_hash
 
-        original_hash = generate_password_hash("original123")
+        original_hash = generate_password_hash(TEST_PASSWORD)
         create_user({
             "nome": "Nao Mexer",
             "email": "nao@mexer.com",
@@ -109,5 +111,5 @@ def test_cancel_does_not_alter_data(app):
         })
 
         user = get_user_by_email("nao@mexer.com")
-        assert check_password_hash(user["password_hash"], "original123")
+        assert check_password_hash(user["password_hash"], TEST_PASSWORD)
         assert user["role"] == "admin_sistema"

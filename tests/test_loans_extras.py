@@ -3,6 +3,8 @@
 import csv, io
 from app.db import get_db
 
+from conftest import TEST_PASSWORD
+
 
 def _create_game(app, nome="Jogo Teste Extras"):
     with app.app_context():
@@ -18,7 +20,7 @@ def _create_user(app, email="user_extras@teste.com", role="usuario"):
         db = get_db()
         db.execute(
             "INSERT INTO users (nome, email, password_hash, role, ativo) VALUES (?, ?, ?, ?, 1)",
-            ("User Extras", email, generate_password_hash("senha123"), role),
+            ("User Extras", email, generate_password_hash(TEST_PASSWORD), role),
         )
         db.commit()
         return db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
@@ -164,13 +166,13 @@ class TestEmailModule:
 class TestProfile:
     def test_get_profile_page(self, app, client):
         _create_user(app)
-        client.post("/login", data={"email": "user_extras@teste.com", "senha": "senha123"})
+        client.post("/login", data={"email": "user_extras@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/perfil")
         assert resp.status_code == 200
 
     def test_update_profile(self, app, client):
         _create_user(app)
-        client.post("/login", data={"email": "user_extras@teste.com", "senha": "senha123"})
+        client.post("/login", data={"email": "user_extras@teste.com", "senha": TEST_PASSWORD})
         resp = client.post("/perfil", data={
             "nome": "Updated Name",
             "email": "user_extras@teste.com",

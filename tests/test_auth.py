@@ -2,6 +2,8 @@
 
 import pytest
 
+from conftest import TEST_PASSWORD
+
 
 class TestLogin:
     def test_success(self, admin_client):
@@ -15,7 +17,7 @@ class TestLogin:
         assert b"Credenciais" in resp.data
 
     def test_nonexistent_email(self, client):
-        resp = client.post("/login", data={"email": "naoexiste@teste.com", "senha": "123"},
+        resp = client.post("/login", data={"email": "naoexiste@teste.com", "senha": TEST_PASSWORD},
                            follow_redirects=True)
         assert b"Credenciais" in resp.data
 
@@ -26,11 +28,11 @@ class TestLogin:
             create_user({
                 "nome": "Inativo",
                 "email": "inativo@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 0,
             })
-        resp = client.post("/login", data={"email": "inativo@teste.com", "senha": "123"},
+        resp = client.post("/login", data={"email": "inativo@teste.com", "senha": TEST_PASSWORD},
                            follow_redirects=True)
         assert b"inativa" in resp.data or b"inativo" in resp.data
 
@@ -102,11 +104,11 @@ class TestAutorizacao:
             create_user({
                 "nome": "Comum",
                 "email": "comum@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "comum@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "comum@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/novo")
         assert resp.status_code == 403
 
@@ -117,11 +119,11 @@ class TestAutorizacao:
             create_user({
                 "nome": "Admin Jogos",
                 "email": "adminj@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_jogos",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "adminj@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "adminj@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/novo")
         assert resp.status_code == 200
 
@@ -136,11 +138,11 @@ class TestAutorizacao:
             create_user({
                 "nome": "Comum",
                 "email": "comum2@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "comum2@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "comum2@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/admin/users")
         assert resp.status_code == 403
 
@@ -213,11 +215,11 @@ class TestAdminUserCreate:
             create_user({
                 "nome": "Comum",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "[EMAIL]", "senha": "123"})
+        client.post("/login", data={"email": "[EMAIL]", "senha": TEST_PASSWORD})
         resp = client.get("/admin/users/criar")
         assert resp.status_code == 403
 
@@ -233,7 +235,7 @@ class TestAdminUserRoleChange:
             user_id = create_user({
                 "nome": "Usuario",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
             })
@@ -254,11 +256,11 @@ class TestAdminUserRoleChange:
             user_id = create_user({
                 "nome": "Unico Admin",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "[EMAIL]", "senha": "admin123"},
+        client.post("/login", data={"email": "[EMAIL]", "senha": TEST_PASSWORD},
                     follow_redirects=True)
         resp = client.post(f"/admin/users/{user_id}/role", data={
             "role": "admin_jogos",
@@ -277,7 +279,7 @@ class TestAdminUserRoleChange:
             create_user({
                 "nome": "Segundo Admin",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
             })
@@ -300,7 +302,7 @@ def _seed_admin(app):
             create_user({
                 "nome": "Admin Teste",
                 "email": "admin@teste.com",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
             })

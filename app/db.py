@@ -31,7 +31,7 @@ def init_db(db_path):
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))  # NOSONAR: pythonsecurity:S3649 — SCHEMA_PATH is a static, developer-controlled file, not user input
         try:
             conn.execute("ALTER TABLE users ADD COLUMN receber_emails INTEGER DEFAULT 0")
             conn.commit()
