@@ -48,11 +48,15 @@ O sistema SHALL fornecer uma rota `GET /<id>` que renderiza `templates/detail.ht
 - **THEN** o badge mostra "Disponível" em verde, e a seção de histórico não é exibida
 
 ### Requirement: Formulário de criação
-O sistema SHALL fornecer rotas `GET /novo` (renderiza `templates/form.html` vazio) e `POST /novo` (valida, persiste, redireciona para `/<id>`). O form contém campos: nome, área (select), descricao (textarea), regras_resumo, num_jogadores, duracao_min, e uploads opcionais de imagem_componentes, imagem_perfil e 1+ páginas de manual. **Ambas as rotas requerem `@role_required('admin_sistema', 'admin_jogos')`.** Visitantes não logados são redirecionados para `/login`.
+O sistema SHALL fornecer rotas `GET /novo` (renderiza `templates/form.html` vazio) e `POST /novo` (valida, persiste, redireciona para `/<id>`). O form contém campos: nome, área (select), descricao (editor EasyMDE com toolbar), regras_resumo, num_jogadores, duracao_min, e uploads opcionais de imagem_componentes, imagem_perfil e 1+ páginas de manual. **Ambas as rotas requerem `@role_required('admin_sistema', 'admin_jogos')`.** Visitantes não logados são redirecionados para `/login`. **A página de formulário carrega os assets do EasyMDE via `url_for('static')` e inicializa o editor no campo `#descricao`.**
 
 #### Scenario: Criar jogo válido
 - **WHEN** um `admin_jogos` logado preenche nome "Novo Jogo", área "anatomia" e submete
 - **THEN** o jogo é criado e o navegador redireciona para `/<novo-id>` mostrando o detalhe
+
+#### Scenario: Editor EasyMDE no campo descricao
+- **WHEN** um `admin_jogos` logado acessa `GET /novo`
+- **THEN** o campo `descricao` é um editor EasyMDE com toolbar (bold, italic, heading, listas, quote, link, image, preview) e textarea vazio
 
 #### Scenario: Upload de imagens na criação
 - **WHEN** o `admin_jogos` anexa uma imagem em `imagem_perfil` ao criar
@@ -67,11 +71,15 @@ O sistema SHALL fornecer rotas `GET /novo` (renderiza `templates/form.html` vazi
 - **THEN** recebe HTTP 403 Forbidden
 
 ### Requirement: Formulário de edição
-O sistema SHALL fornecer rotas `GET /<id>/editar` (renderiza `templates/form.html` preenchido) e `POST /<id>/editar` (valida, atualiza, redireciona para `/<id>`). Uploads opcionais substituem as imagens existentes. **Ambas as rotas requerem `@role_required('admin_sistema', 'admin_jogos')`.**
+O sistema SHALL fornecer rotas `GET /<id>/editar` (renderiza `templates/form.html` preenchido) e `POST /<id>/editar` (valida, atualiza, redireciona para `/<id>`). Uploads opcionais substituem as imagens existentes. **Ambas as rotas requerem `@role_required('admin_sistema', 'admin_jogos')`. A página de formulário carrega os assets do EasyMDE via `url_for('static')` e inicializa o editor no campo `#descricao` com o valor existente do jogo.**
 
 #### Scenario: Editar descrição
-- **WHEN** um `admin_jogos` logado altera o campo `descricao` e submete
+- **WHEN** um `admin_jogos` logado altera o campo `descricao` via editor EasyMDE e submete
 - **THEN** o registro é atualizado em `games`, `updated_at` muda, e o navegador redireciona para `/<id>` mostrando o novo texto
+
+#### Scenario: Editor EasyMDE carrega valor existente
+- **WHEN** um `admin_jogos` logado acessa `GET /<id>/editar` para um jogo com `descricao` preenchida
+- **THEN** o editor EasyMDE exibe o conteúdo markdown existente, pronto para edição
 
 #### Scenario: Substituir imagem de perfil
 - **WHEN** o `admin_jogos` anexa nova imagem em `imagem_perfil` ao editar
@@ -104,11 +112,23 @@ O sistema SHALL servir as imagens de `data/` via uma rota `GET /media/<path:file
 - **THEN** o Flask retorna o arquivo JPEG com content-type `image/jpeg`
 
 ### Requirement: Renderização de Markdown na descrição
-O sistema SHALL renderizar o campo `descricao` (Markdown) como HTML na tela de detalhe, usando a biblioteca `markdown` (ou `mistune`). A conversão acontece em runtime no template via filtro Jinja2 ou no route handler.
+O sistema SHALL renderizar o campo `descricao` (Markdown) como HTML na tela de detalhe, usando a biblioteca `markdown` com extensao `extra`. O conteudo renderizado em `.markdown-content` SHALL aplicar regras de tipografia para leitura confortavel: `line-height` de pelo menos 1.6 no container; espaçamento vertical entre paragrafos de pelo menos 0.8em; espacamento vertical entre itens de lista de pelo menos 0.3em; margem vertical em listas e blockquote de pelo menos 0.8em; margem superior em headings maior que a margem inferior; estilo visual para blockquote com borda lateral esquerda e cor atenuada; estilo visual para code inline com fundo sutil e borda arredondada; estilo visual para pre com fundo, borda e scroll horizontal. Todos os estilos devem usar os tokens visuais do projeto (`var(--text)`, `var(--muted)`, `var(--bg)`, `var(--border)`) e NAO introduzir novas cores ou fontes.
+
+#### Scenario: Descrição com múltiplos parágrafos
+- **WHEN** o jogo tem `descricao` contendo 3 parágrafos separados por linha em branco
+- **THEN** a tela de detalhe mostra os 3 parágrafos com espaçamento vertical visível entre eles, e `line-height` confortável de ~1.6-1.7
 
 #### Scenario: Descrição com Markdown
 - **WHEN** o jogo tem `descricao` contendo "# Título\n\nTexto em **negrito**"
 - **THEN** a tela de detalhe mostra "Título" como h1 e "Texto em **negrito**" com a palavra em negrito
+
+#### Scenario: Descrição com listas e citações
+- **WHEN** a descrição contém lista não-ordenada (`- item 1\n- item 2`) e blockquote (`> citacao`)
+- **THEN** os itens da lista têm bullets visíveis e espaçamento vertical; o blockquote tem borda lateral esquerda e cor de texto atenuada
+
+#### Scenario: Descrição com código inline e bloco
+- **WHEN** a descrição contém `` `codigo` `` e bloco de código (fenced com ```)
+- **THEN** o código inline aparece com fundo sutil; o bloco de código aparece com fundo, borda e scroll horizontal se necessário
 
 ### Requirement: Nav dinâmico por role
 O sistema SHALL exibir links de navegação diferentes em `base.html` conforme o role do usuário logado: visitante não logado vê "Login" e "Registrar"; `usuario` vê "Meus empréstimos" (no Change 2) e "Logout"; `admin_jogos` vê "Novo jogo", "Empréstimos (admin)" (no Change 2) e "Logout"; `admin_sistema` vê tudo de `admin_jogos` mais "Usuários" e "Escolas".
