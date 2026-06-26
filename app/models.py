@@ -1,10 +1,24 @@
 """Funções de acesso a dados (CRUD de games + manual pages)."""
 
+import unicodedata
 from datetime import datetime
 
 from werkzeug.security import generate_password_hash
 
 from .db import get_db
+
+
+def _strip_accents(text):
+    if text is None:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", text)
+    return nfkd.encode("ascii", "ignore").decode("ascii")
+
+
+def _escape_like(text):
+    if text is None:
+        return ""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _parse_int(value):
@@ -24,8 +38,16 @@ def list_games(area=None, q=None, page=1, per_page=20):
         clauses.append("area = ?")
         params.append(area)
     if q:
-        clauses.append("LOWER(nome) LIKE ?")
-        params.append(f"%{q.lower()}%")
+        db = get_db()
+        db.create_function("strip_accents", 1, _strip_accents)
+        tokens = q.split()
+        for token in tokens:
+            stripped = _strip_accents(token.lower())
+            escaped = _escape_like(stripped)
+            clauses.append(
+                "LOWER(strip_accents(nome || ' ' || COALESCE(descricao,'') || ' ' || COALESCE(regras_resumo,''))) LIKE ? ESCAPE '\\'"
+            )
+            params.append(f"%{escaped}%")
     if clauses:
         where = " WHERE " + " AND ".join(clauses)
         sql += where
