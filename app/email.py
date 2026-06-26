@@ -60,8 +60,22 @@ def send_notification(tipo, loan, user=None, extra=None):
 
     if tipo == "loan_approved":
         game = models.get_game(loan["game_id"])
-        send_email(user["email"], f"Empréstimo reservado: {game['nome']}",
-                   f"Seu empréstimo de '{game['nome']}' foi reservado. Retire com o administrador.")
+        slot_info = ""
+        if loan["pickup_slot_id"]:
+            slot = models.get_pickup_slot(loan["pickup_slot_id"])
+            if slot:
+                slot_info = f" Horario confirmado: {models.format_pickup_slot(slot)}. Compareca ao balcao neste horario."
+        send_email(user["email"], f"Emprestimo reservado: {game['nome']}",
+                   f"Seu emprestimo de '{game['nome']}' foi reservado.{slot_info}")
+    elif tipo == "pickup_requested":
+        game = models.get_game(loan["game_id"])
+        slot_info = "Aguardando definicao de horario."
+        if loan["pickup_slot_id"]:
+            slot = models.get_pickup_slot(loan["pickup_slot_id"])
+            if slot:
+                slot_info = f"Horario solicitado: {models.format_pickup_slot(slot)}."
+        send_email(user["email"], f"Solicitacao recebida: {game['nome']}",
+                   f"Recebemos sua solicitacao para '{game['nome']}'. {slot_info} Aguarde aprovacao.")
     elif tipo == "loan_loaned":
         game = models.get_game(loan["game_id"])
         send_email(user["email"], f"Jogo emprestado: {game['nome']}",

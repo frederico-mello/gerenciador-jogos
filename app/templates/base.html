@@ -21,6 +21,7 @@
           {% if current_user.role == 'admin_sistema' %}
             <a href="{{ url_for('games.admin_users') }}">Usuários</a>
             <a href="{{ url_for('games.admin_schools') }}">Escolas</a>
+            <a href="{{ url_for('games.admin_pickup_slots') }}">Horarios de retirada</a>
           {% endif %}
           {% if current_user.role == 'usuario' %}
             <a href="{{ url_for('games.emprestimos') }}">Meus empréstimos</a>

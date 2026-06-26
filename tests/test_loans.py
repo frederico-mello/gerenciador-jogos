@@ -28,13 +28,23 @@ def _login(client, email="user@teste.com"):
     client.post("/login", data={"email": email, "senha": "senha123"})
 
 
+def _create_pickup_slot(app, dia_semana=0, hora="09:00"):
+    from app.models import create_pickup_slot
+    with app.app_context():
+        slot_id = create_pickup_slot(dia_semana, hora)
+        assert slot_id is not None
+        return slot_id
+
+
 class TestLoanCreation:
     def test_solicitar_emprestimo_valido(self, app, client):
         game_id = _create_game(app)
         user_id = _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
 
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "pickup_slot_id": str(slot_id),
             "devolucao_prevista": "2026-07-15",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -51,9 +61,11 @@ class TestLoanCreation:
     def test_jogo_indisponivel(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "pickup_slot_id": str(slot_id),
             "devolucao_prevista": "2026-07-20",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -61,9 +73,11 @@ class TestLoanCreation:
     def test_solicitacao_duplicada_rejeitada(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "pickup_slot_id": str(slot_id),
             "devolucao_prevista": "2026-07-20",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -75,6 +89,7 @@ class TestLoanCreation:
     def test_solicitar_sem_login_redirect(self, app, client):
         game_id = _create_game(app)
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "pickup_slot_id": "1",
             "devolucao_prevista": "2026-07-15",
         }, follow_redirects=False)
         assert resp.status_code == 302
@@ -91,16 +106,18 @@ class TestUserLoanList:
     def test_detalhe_user_com_loan_ativo(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         resp = client.get(f"/{game_id}")
         assert resp.status_code == 200
 
     def test_lista_proprios_emprestimos(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         resp = client.get("/emprestimos")
         assert resp.status_code == 200
         assert b"Jogo Teste" in resp.data
@@ -116,8 +133,9 @@ class TestUserCancel:
     def test_cancelar_solicitacao_propria(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         with app.app_context():
             loan_id = get_db().execute("SELECT id FROM loans").fetchone()["id"]
 
@@ -130,8 +148,9 @@ class TestUserCancel:
     def test_cancelar_emprestimo_alheio_403(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
         with app.app_context():
             db = get_db()
             loan_id = db.execute("SELECT id FROM loans").fetchone()["id"]
@@ -146,8 +165,9 @@ class TestUserRenew:
     def test_solicitar_renovacao(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
+        slot_id = _create_pickup_slot(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"pickup_slot_id": str(slot_id), "devolucao_prevista": "2026-07-15"})
 
         with app.app_context():
             db = get_db()

@@ -221,7 +221,8 @@ def detalhe(game_id):
                            descricao_html=descricao_html,
                            availability_status=status, active_loan_id=loan_id,
                            loan_history=loan_history,
-                           user_has_active_loan=user_has_active_loan)
+                           user_has_active_loan=user_has_active_loan,
+                           pickup_slots=models.list_pickup_slots(ativo_only=True))
 
 
 @bp.route("/<int:game_id>/editar", methods=["GET", "POST"])
@@ -381,6 +382,98 @@ def admin_schools_reativar(school_id):
     models.set_school_ativo(school_id, 1)
     flash(f"Escola '{school['nome']}' reativada.", "success")
     return redirect(url_for("games.admin_schools"))
+
+
+@bp.route("/admin/pickup-slots")
+@role_required("admin_sistema")
+def admin_pickup_slots():
+    slots = models.list_pickup_slots(ativo_only=False)
+    return render_template("admin_pickup_slots.html", slots=slots)
+
+
+@bp.route("/admin/pickup-slots/criar", methods=["GET", "POST"])
+@role_required("admin_sistema")
+def admin_pickup_slots_criar():
+    if request.method == "POST":
+        try:
+            dia_semana = int(request.form.get("dia_semana", ""))
+        except (TypeError, ValueError):
+            dia_semana = -1
+        hora = (request.form.get("hora") or "").strip()
+        errors = []
+        if not (0 <= dia_semana <= 6):
+            errors.append("Dia da semana invalido.")
+        if not hora or not (len(hora) == 5 and hora[2] == ":"):
+            errors.append("Horario invalido (use HH:MM).")
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("admin_pickup_slot_form.html", slot=None, form=request.form), 400
+
+        slot_id = models.create_pickup_slot(dia_semana, hora)
+        if slot_id is None:
+            flash("Ja existe um horario ativo para este dia/hora.", "error")
+            return render_template("admin_pickup_slot_form.html", slot=None, form=request.form), 400
+
+        flash("Horario criado.", "success")
+        return redirect(url_for("games.admin_pickup_slots"))
+
+    return render_template("admin_pickup_slot_form.html", slot=None, form={})
+
+
+@bp.route("/admin/pickup-slots/<int:slot_id>/editar", methods=["GET", "POST"])
+@role_required("admin_sistema")
+def admin_pickup_slots_editar(slot_id):
+    slot = models.get_pickup_slot(slot_id)
+    if not slot:
+        abort(404)
+
+    if request.method == "POST":
+        try:
+            dia_semana = int(request.form.get("dia_semana", ""))
+        except (TypeError, ValueError):
+            dia_semana = -1
+        hora = (request.form.get("hora") or "").strip()
+        errors = []
+        if not (0 <= dia_semana <= 6):
+            errors.append("Dia da semana invalido.")
+        if not hora or not (len(hora) == 5 and hora[2] == ":"):
+            errors.append("Horario invalido (use HH:MM).")
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("admin_pickup_slot_form.html", slot=slot, form=request.form), 400
+
+        if not models.update_pickup_slot(slot_id, {"dia_semana": dia_semana, "hora": hora}):
+            flash("Ja existe um horario ativo para este dia/hora.", "error")
+            return render_template("admin_pickup_slot_form.html", slot=slot, form=request.form), 400
+
+        flash("Horario atualizado.", "success")
+        return redirect(url_for("games.admin_pickup_slots"))
+
+    return render_template("admin_pickup_slot_form.html", slot=slot, form={})
+
+
+@bp.route("/admin/pickup-slots/<int:slot_id>/inativar", methods=["POST"])
+@role_required("admin_sistema")
+def admin_pickup_slots_inativar(slot_id):
+    slot = models.get_pickup_slot(slot_id)
+    if not slot:
+        abort(404)
+    models.set_pickup_slot_ativo(slot_id, 0)
+    flash("Horario inativado.", "success")
+    return redirect(url_for("games.admin_pickup_slots"))
+
+
+@bp.route("/admin/pickup-slots/<int:slot_id>/reativar", methods=["POST"])
+@role_required("admin_sistema")
+def admin_pickup_slots_reativar(slot_id):
+    slot = models.get_pickup_slot(slot_id)
+    if not slot:
+        abort(404)
+    models.set_pickup_slot_ativo(slot_id, 1)
+    flash("Horario reativado.", "success")
+    return redirect(url_for("games.admin_pickup_slots"))
 
 
 @bp.route("/admin/users")
@@ -599,9 +692,9 @@ def export_emprestimos_csv():
 
     si = io.StringIO()
     writer = csv.writer(si)
-    writer.writerow(["ID", "Jogo", "Área", "Usuário", "Email", "Escola", "Status",
+    writer.writerow(["ID", "Jogo", "Area", "Usuario", "Email", "Escola", "Status",
                      "Solicitado em", "Reservado em", "Emprestado em", "Devolvido em",
-                     "Devolução Prevista", "Atrasado", "Observações"])
+                     "Devolucao Prevista", "Atrasado", "Horario de Retirada", "Observacoes"])
     for loan in loans:
         from app import models as m
         user_detail = m.get_user(loan["user_id"])
@@ -612,12 +705,15 @@ def export_emprestimos_csv():
                 escola_nome = school["nome"]
         atrasado = "Sim" if (loan["status"] == "emprestado" and loan["devolucao_prevista"]
                              and loan["devolucao_prevista"] < hoje) else "Não"
+        slot_formatted = ""
+        if loan["slot_dia_semana"] is not None and loan["slot_hora"]:
+            slot_formatted = m.format_pickup_slot({"dia_semana": loan["slot_dia_semana"], "hora": loan["slot_hora"]})
         writer.writerow([
             loan["id"], loan["game_nome"], loan["game_area"], loan["user_nome"],
             user_detail["email"] if user_detail else "", escola_nome,
             loan["status"], loan["solicitado_at"], loan["reservado_at"],
             loan["emprestado_at"], loan["devolvido_at"],
-            loan["devolucao_prevista"] or "", atrasado, loan["observacoes"] or "",
+            loan["devolucao_prevista"] or "", atrasado, slot_formatted, loan["observacoes"] or "",
         ])
 
     output = si.getvalue()
@@ -652,21 +748,33 @@ def solicitar_emprestimo(game_id):
     user = current_user()
 
     if models.user_has_active_loan(user["id"], game_id):
-        flash("Você já possui uma solicitação ou empréstimo ativo para este jogo.", "error")
+        flash("Voce ja possui uma solicitacao ou emprestimo ativo para este jogo.", "error")
         return redirect(url_for("games.emprestimos"))
 
     status, _ = models.get_game_availability(game_id)
     if status != "disponivel":
-        # Offer queue entry instead of just rejecting
-        flash("Jogo indisponível no momento.", "error")
+        flash("Jogo indisponivel no momento.", "error")
         return redirect(url_for("games.confirmar_fila", game_id=game_id))
+
+    pickup_slot_id_raw = request.form.get("pickup_slot_id") or ""
+    try:
+        pickup_slot_id = int(pickup_slot_id_raw)
+    except (TypeError, ValueError):
+        pickup_slot_id = None
+    slot = models.get_pickup_slot(pickup_slot_id) if pickup_slot_id else None
+    if not slot or not slot["ativo"]:
+        flash("Selecione um horario de retirada valido.", "error")
+        return redirect(url_for("games.detalhe", game_id=game_id))
+
     devolucao_prevista = request.form.get("devolucao_prevista") or ""
     if not devolucao_prevista:
         from datetime import date, timedelta
         devolucao_prevista = (date.today() + timedelta(days=7)).isoformat()
 
-    models.create_loan(game_id, user["id"], devolucao_prevista)
-    flash("Solicitação enviada.", "success")
+    loan_id = models.create_loan(game_id, user["id"], devolucao_prevista, pickup_slot_id)
+    from .email import send_notification
+    send_notification("pickup_requested", models.get_loan(loan_id))
+    flash("Solicitacao enviada.", "success")
     return redirect(url_for("games.emprestimos"))
 
 
@@ -760,11 +868,16 @@ def aprovar_emprestimo(loan_id):
         return redirect(url_for("games.emprestimos_admin"))
     if loan["status"] != "solicitado":
         abort(400)
+    if loan["pickup_slot_id"]:
+        slot = models.get_pickup_slot(loan["pickup_slot_id"])
+        if not slot or not slot["ativo"]:
+            flash("O horario de retirada selecionado nao esta mais disponivel. Cancele e peca ao usuario para refazer a solicitacao.", "error")
+            return redirect(url_for("games.emprestimos_admin"))
     user = current_user()
     models.update_loan_status(loan_id, "reservado", user["id"])
     from .email import send_notification
     send_notification("loan_approved", models.get_loan(loan_id))
-    flash("Empréstimo reservado.", "success")
+    flash("Emprestimo reservado.", "success")
     return redirect(url_for("games.emprestimos_admin"))
 
 
