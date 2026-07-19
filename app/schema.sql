@@ -1,5 +1,4 @@
 -- Schema do banco de jogos
--- NOSONAR: plsql:S1192 — DEFAULT datetime expression is a SQLite requirement; duplication across columns is intentional
 
 CREATE TABLE IF NOT EXISTS games (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +50,9 @@ CREATE TABLE IF NOT EXISTS users (
     escola_id     INTEGER,
     ativo         INTEGER DEFAULT 1,
     receber_emails INTEGER DEFAULT 0,
+    telefone      TEXT NOT NULL DEFAULT '',
+    whatsapp      INTEGER DEFAULT 0,
+    consentimento INTEGER DEFAULT 0,
     created_at    TEXT DEFAULT (datetime('now', 'localtime')),
     updated_at    TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (escola_id) REFERENCES schools(id)

@@ -6,11 +6,6 @@ from werkzeug.security import generate_password_hash
 
 from .db import get_db
 
-SQL_AND = " AND "
-SQL_WHERE = " WHERE "
-SQL_ORDER_BY_NOME = " ORDER BY nome"
-SQL_UPDATED_AT = "updated_at = ?"
-
 
 def _parse_int(value):
     """Converte value para int, retornando None se value for None ou string vazia."""
@@ -32,10 +27,10 @@ def list_games(area=None, q=None, page=1, per_page=20):
         clauses.append("LOWER(nome) LIKE ?")
         params.append(f"%{q.lower()}%")
     if clauses:
-        where = SQL_WHERE + SQL_AND.join(clauses)
+        where = " WHERE " + " AND ".join(clauses)
         sql += where
         count_sql += where
-    sql += SQL_ORDER_BY_NOME
+    sql += " ORDER BY nome"
 
     db = get_db()
     total = db.execute(count_sql, params).fetchone()["total"]
@@ -113,7 +108,7 @@ def update_game(game_id, data):
     if "duracao_min" in data:
         fields.append("duracao_min = ?")
         params.append(_parse_int(data.get("duracao_min")))
-    fields.append(SQL_UPDATED_AT)
+    fields.append("updated_at = ?")
     params.append(datetime.now().isoformat(timespec="seconds"))
     params.append(game_id)
     db.execute(f"UPDATE games SET {', '.join(fields)} WHERE id = ?", params)
@@ -140,8 +135,8 @@ def list_schools(rede=None, q=None, ativo_only=True):
     if ativo_only:
         clauses.append("ativo = 1")
     if clauses:
-        sql += SQL_WHERE + SQL_AND.join(clauses)
-    sql += SQL_ORDER_BY_NOME
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY nome"
     return get_db().execute(sql, params).fetchall()
 
 
@@ -183,7 +178,7 @@ def update_school(school_id, data):
         if key in data and data[key] is not None:
             fields.append(f"{key} = ?")
             params.append(data[key])
-    fields.append(SQL_UPDATED_AT)
+    fields.append("updated_at = ?")
     params.append(datetime.now().isoformat(timespec="seconds"))
     params.append(school_id)
     db.execute(f"UPDATE schools SET {', '.join(fields)} WHERE id = ?", params)
@@ -224,8 +219,9 @@ def create_user(data):
     """
     db = get_db()
     cur = db.execute(
-        """INSERT INTO users (nome, email, password_hash, role, escola_id, ativo)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO users (nome, email, password_hash, role, escola_id, ativo,
+           telefone, whatsapp, consentimento)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             data["nome"],
             data["email"],
@@ -233,6 +229,9 @@ def create_user(data):
             data.get("role", "usuario"),
             data.get("escola_id"),
             data.get("ativo", 1),
+            data.get("telefone", ""),
+            data.get("whatsapp", 0),
+            data.get("consentimento", 0),
         ),
     )
     user_id = cur.lastrowid
@@ -246,14 +245,15 @@ def update_user(user_id, data):
     """
     db = get_db()
     fields, params = [], []
-    for key in ("nome", "email", "role", "escola_id", "ativo", "receber_emails"):
+    for key in ("nome", "email", "role", "escola_id", "ativo", "receber_emails",
+                "telefone", "whatsapp", "consentimento"):
         if key in data and data[key] is not None:
             fields.append(f"{key} = ?")
             params.append(data[key])
     if "senha" in data and data["senha"]:
         fields.append("password_hash = ?")
         params.append(generate_password_hash(data["senha"]))
-    fields.append(SQL_UPDATED_AT)
+    fields.append("updated_at = ?")
     params.append(datetime.now().isoformat(timespec="seconds"))
     params.append(user_id)
     db.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", params)
@@ -278,7 +278,7 @@ def set_user_ativo(user_id, ativo):
 
 def list_users(role=None, escola_id=None, ativo_only=True):
     """Lista usuários, opcionalmente filtrados por role, escola e ativo."""
-    sql = "SELECT id, nome, email, role, escola_id, ativo, created_at, updated_at FROM users"
+    sql = "SELECT id, nome, email, role, escola_id, ativo, telefone, whatsapp, created_at, updated_at FROM users"
     clauses, params = [], []
     if role:
         clauses.append("role = ?")
@@ -289,8 +289,8 @@ def list_users(role=None, escola_id=None, ativo_only=True):
     if ativo_only:
         clauses.append("ativo = 1")
     if clauses:
-        sql += SQL_WHERE + SQL_AND.join(clauses)
-    sql += SQL_ORDER_BY_NOME
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY nome"
     return get_db().execute(sql, params).fetchall()
 
 
@@ -337,7 +337,7 @@ def _list_loans_paginated(where_clause, params, page=1, per_page=30):
                   FROM loans l JOIN games g ON l.game_id = g.id JOIN users u ON l.user_id = u.id"""
     count_sql = "SELECT COUNT(*) AS total FROM loans l JOIN games g ON l.game_id = g.id JOIN users u ON l.user_id = u.id"
 
-    where = SQL_WHERE + where_clause if where_clause else ""
+    where = " WHERE " + where_clause if where_clause else ""
     sql = base_sql + where + " ORDER BY l.created_at DESC"
     count_sql += where
 
@@ -375,7 +375,7 @@ def list_loans_all(status=None, user_id=None, area=None, data_inicio=None, data_
         clauses.append("l.created_at <= ?")
         params.append(data_fim)
 
-    where = SQL_AND.join(clauses) if clauses else "1=1"
+    where = " AND ".join(clauses) if clauses else "1=1"
     return _list_loans_paginated(where, params, page, per_page)
 
 
@@ -402,7 +402,7 @@ def update_loan_status(loan_id, novo_status, changed_by, observacao=None):
         "devolvido": "devolvido_at",
     }.get(novo_status)
 
-    fields = ["status = ?", SQL_UPDATED_AT]
+    fields = ["status = ?", "updated_at = ?"]
     params = [novo_status, now]
     if ts_field:
         fields.append(f"{ts_field} = ?")

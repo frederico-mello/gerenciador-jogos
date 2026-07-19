@@ -44,6 +44,25 @@
       Ativo
     </label>
   </div>
+  <div class="form-group">
+    <label>Telefone</label>
+    <div style="display:flex; gap:0.5rem;">
+      <input type="text" name="telefone_ddd" placeholder="DDD" maxlength="2" pattern="\d{2}" value="{{ form.get('telefone_ddd', '') }}" style="width:5ch;" />
+      <input type="text" name="telefone_numero" placeholder="Número" maxlength="9" pattern="\d{8,9}" value="{{ form.get('telefone_numero', '') }}" style="flex:1;" />
+    </div>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="whatsapp" value="1" {% if form.get('whatsapp') == '1' %}checked{% endif %} />
+      Este número é WhatsApp
+    </label>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="consentimento" value="1" {% if form.get('consentimento') == '1' %}checked{% endif %} />
+      Consentimento LGPD
+    </label>
+  </div>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Criar</button>
     <a class="btn" href="{{ url_for('games.admin_users') }}">Cancelar</a>

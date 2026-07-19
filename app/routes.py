@@ -37,17 +37,164 @@ MSG_NOME_OBRIGATORIO = "Nome é obrigatório."
 MSG_EMAIL_OBRIGATORIO = "Email é obrigatório."
 MSG_EMAIL_JA_CADASTRADO = "Email já cadastrado."
 MSG_SENHA_MINIMA = "Senha deve ter pelo menos 4 caracteres."
+MSG_TELEFONE_OBRIGATORIO = "Telefone é obrigatório."
+MSG_DDD_INVALIDO = "DDD inválido."
+MSG_NUMERO_TELEFONE_INVALIDO = "Número de telefone inválido."
+MSG_CONSENTIMENTO_OBRIGATORIO = "É necessário consentir com os termos."
 
 ENDPOINT_INDEX = "games.index"
 ENDPOINT_ADMIN_USERS = "games.admin_users"
 ENDPOINT_EMPRESTIMOS_ADMIN = "games.emprestimos_admin"
 ENDPOINT_EMPRESTIMOS = "games.emprestimos"
 ENDPOINT_ADMIN_SCHOOLS = "games.admin_schools"
+ENDPOINT_LOGIN = "games.login"
+ENDPOINT_PERFIL = "games.perfil"
 
 TEMPLATE_LOGIN = "login.html"
 TEMPLATE_FORM = "form.html"
 TEMPLATE_ADMIN_SCHOOL_FORM = "admin_school_form.html"
+TEMPLATE_ADMIN_USER_FORM = "admin_user_form.html"
+TEMPLATE_ADMIN_USER_CREATE = "admin_user_create.html"
+TEMPLATE_REGISTRAR = "registrar.html"
 TEMPLATE_PERFIL = "perfil.html"
+
+DDD_RANGE = range(11, 100)
+
+
+def _validate_telefone(ddd, numero):
+    """Valida DDD (2 digitos, 11-99) e numero (8-9 digitos).
+    Retorna string concatenada 'DDDnumero' ou levanta ValueError."""
+    ddd = (ddd or "").strip()
+    numero = (numero or "").strip()
+    if not ddd or not numero:
+        raise ValueError(MSG_TELEFONE_OBRIGATORIO)
+    if len(ddd) != 2 or not ddd.isdigit() or int(ddd) not in DDD_RANGE:
+        raise ValueError(MSG_DDD_INVALIDO)
+    if len(numero) < 8 or len(numero) > 9 or not numero.isdigit():
+        raise ValueError(MSG_NUMERO_TELEFONE_INVALIDO)
+    return ddd + numero
+
+
+def _parse_user_contact_fields(form, require_telefone=False, require_consentimento=False):
+    """Extrai telefone/whatsapp/consentimento do form.
+
+    Retorna (telefone, whatsapp, consentimento, errors):
+    - telefone: str validada, ou None se ambos os campos vazios e não obrigatório.
+    - whatsapp/consentimento: 0 ou 1.
+    - errors: lista de mensagens de erro de validação.
+    """
+    errors = []
+    telefone_ddd = (form.get("telefone_ddd") or "").strip()
+    telefone_numero = (form.get("telefone_numero") or "").strip()
+    telefone = None
+    if telefone_ddd or telefone_numero or require_telefone:
+        try:
+            telefone = _validate_telefone(telefone_ddd, telefone_numero)
+        except ValueError as e:
+            errors.append(str(e))
+            telefone = ""
+    whatsapp = 1 if form.get("whatsapp") == "1" else 0
+    consentimento = 1 if form.get("consentimento") == "1" else 0
+    if require_consentimento and consentimento != 1:
+        errors.append(MSG_CONSENTIMENTO_OBRIGATORIO)
+    return telefone, whatsapp, consentimento, errors
+
+
+def _split_telefone(telefone):
+    """Quebra uma string 'DDDnumero' em (ddd, numero) para popular o form."""
+    t = telefone or ""
+    return t[:2] if len(t) >= 2 else "", t[2:] if len(t) > 2 else ""
+
+
+def _build_admin_user_update_data(form, nome, telefone, whatsapp, consentimento):
+    """Monta o dict de campos a atualizar em /admin/users/<id>/editar."""
+    data = {"nome": nome, "whatsapp": whatsapp, "consentimento": consentimento}
+    email = form.get("email") or None
+    if email:
+        data["email"] = email
+    escola_id = form.get("escola_id") or None
+    data["escola_id"] = int(escola_id) if escola_id else None
+    senha = form.get("senha") or ""
+    if senha:
+        data["senha"] = senha
+    ativo = form.get("ativo")
+    if ativo is not None:
+        data["ativo"] = 1 if ativo == "1" else 0
+    if telefone is not None:
+        data["telefone"] = telefone
+    return data
+
+
+def _build_perfil_update_data(nome, email, receber_emails, senha, telefone, whatsapp, consentimento):
+    """Monta o dict de campos a atualizar em /perfil."""
+    data = {"nome": nome, "email": email, "receber_emails": receber_emails,
+            "whatsapp": whatsapp, "consentimento": consentimento}
+    if telefone is not None:
+        data["telefone"] = telefone
+    if senha:
+        data["senha"] = senha
+    return data
+
+
+def _validate_registrant(form):
+    """Valida campos do formulário público de registro."""
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    email = (form.get("email") or "").strip()
+    senha = form.get("senha") or ""
+    confirmacao = form.get("confirmacao") or ""
+    escola_id = form.get("escola_id") or None
+
+    if not nome:
+        errors.append(MSG_NOME_OBRIGATORIO)
+    if not email:
+        errors.append(MSG_EMAIL_OBRIGATORIO)
+    elif models.get_user_by_email(email):
+        errors.append(MSG_EMAIL_JA_CADASTRADO)
+    if not senha:
+        errors.append("Senha é obrigatória.")
+    elif len(senha) < 4:
+        errors.append(MSG_SENHA_MINIMA)
+    elif senha != confirmacao:
+        errors.append("Senhas não conferem.")
+    if not escola_id:
+        errors.append("Escola é obrigatória.")
+    return errors
+
+
+def _validate_perfil_update(form, current_email):
+    """Valida campos do formulário de perfil (nome, email único, senha opcional)."""
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    email = (form.get("email") or "").strip()
+    senha = form.get("senha") or ""
+
+    if not nome:
+        errors.append(MSG_NOME_OBRIGATORIO)
+    if not email:
+        errors.append(MSG_EMAIL_OBRIGATORIO)
+    elif email != current_email and models.get_user_by_email(email):
+        errors.append(MSG_EMAIL_JA_CADASTRADO)
+    if senha and len(senha) < 4:
+        errors.append(MSG_SENHA_MINIMA)
+    return errors
+
+
+def _build_admin_user_create_payload(form, senha, telefone, whatsapp, consentimento):
+    """Monta o payload para models.create_user a partir do form admin."""
+    from werkzeug.security import generate_password_hash
+    escola_id = form.get("escola_id")
+    return {
+        "nome": (form.get("nome") or "").strip(),
+        "email": (form.get("email") or "").strip(),
+        "password_hash": generate_password_hash(senha),
+        "role": form.get("role") or "usuario",
+        "escola_id": int(escola_id) if escola_id else None,
+        "ativo": 1 if form.get("ativo") == "1" else 0,
+        "telefone": telefone,
+        "whatsapp": whatsapp,
+        "consentimento": consentimento,
+    }
 
 
 @bp.app_context_processor
@@ -81,46 +228,33 @@ def login():
 @bp.route("/registrar", methods=["GET", "POST"])
 def registrar():
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        email = (request.form.get("email") or "").strip()
-        senha = request.form.get("senha") or ""
-        confirmacao = request.form.get("confirmacao") or ""
-        escola_id = request.form.get("escola_id") or None
-
-        errors = []
-        if not nome:
-            errors.append(MSG_NOME_OBRIGATORIO)
-        if not email:
-            errors.append(MSG_EMAIL_OBRIGATORIO)
-        elif models.get_user_by_email(email):
-            errors.append(MSG_EMAIL_JA_CADASTRADO)
-        if not senha:
-            errors.append("Senha é obrigatória.")
-        elif len(senha) < 4:
-            errors.append(MSG_SENHA_MINIMA)
-        elif senha != confirmacao:
-            errors.append("Senhas não conferem.")
-        if not escola_id:
-            errors.append("Escola é obrigatória.")
-
+        errors = _validate_registrant(request.form)
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form, require_telefone=True,
+                                       require_consentimento=True)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("registrar.html", schools=models.list_schools(),
+            return render_template(TEMPLATE_REGISTRAR, schools=models.list_schools(),
                                    form=request.form), 400
 
         from werkzeug.security import generate_password_hash
         models.create_user({
-            "nome": nome,
-            "email": email,
-            "password_hash": generate_password_hash(senha),
+            "nome": (request.form.get("nome") or "").strip(),
+            "email": (request.form.get("email") or "").strip(),
+            "password_hash": generate_password_hash(request.form.get("senha") or ""),
             "role": "usuario",
-            "escola_id": int(escola_id),
+            "escola_id": int(request.form.get("escola_id")),
             "ativo": 1,
+            "telefone": telefone,
+            "whatsapp": whatsapp,
+            "consentimento": consentimento,
         })
         flash("Conta criada! Faça login.", "success")
-        return redirect(url_for("games.login"))
-    return render_template("registrar.html", schools=models.list_schools(), form={})
+        return redirect(url_for(ENDPOINT_LOGIN))
+    return render_template(TEMPLATE_REGISTRAR, schools=models.list_schools(), form={})
 
 
 @bp.route("/logout", methods=["GET"])
@@ -452,7 +586,7 @@ def admin_users():
 
 
 @bp.route("/admin/users/<int:user_id>/editar", methods=["GET", "POST"])
-@role_required("admin_sistema")
+@role_required("admin_sistema", "admin_jogos")
 def admin_users_editar(user_id):
     user = models.get_user(user_id)
     if not user:
@@ -460,33 +594,32 @@ def admin_users_editar(user_id):
 
     if request.method == "POST":
         nome = (request.form.get("nome") or "").strip()
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form)
+        )
         errors = []
         if not nome:
             errors.append(MSG_NOME_OBRIGATORIO)
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False),
+            return render_template(TEMPLATE_ADMIN_USER_FORM, user=user,
+                                   escolas=models.list_schools(ativo_only=False),
                                    form=request.form), 400
 
-        data = {"nome": nome}
-        email = request.form.get("email") or None
-        if email:
-            data["email"] = email
-        escola_id = request.form.get("escola_id") or None
-        data["escola_id"] = int(escola_id) if escola_id else None
-        senha = request.form.get("senha") or ""
-        if senha:
-            data["senha"] = senha
-        ativo = request.form.get("ativo")
-        if ativo is not None:
-            data["ativo"] = 1 if ativo == "1" else 0
+        data = _build_admin_user_update_data(
+            request.form, nome, telefone, whatsapp, consentimento,
+        )
 
         models.update_user(user_id, data)
         flash(f"Usuário '{nome}' atualizado.", "success")
         return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
-    return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False), form={})
+    form = dict(user)
+    form["telefone_ddd"], form["telefone_numero"] = _split_telefone(form.get("telefone"))
+    return render_template(TEMPLATE_ADMIN_USER_FORM, user=user,
+                           escolas=models.list_schools(ativo_only=False), form=form)
 
 
 @bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
@@ -516,7 +649,7 @@ def admin_users_role(user_id):
 
 
 @bp.route("/admin/users/criar", methods=["GET", "POST"])
-@role_required("admin_sistema")
+@role_required("admin_sistema", "admin_jogos")
 def admin_users_criar():
     if request.method == "POST":
         errors = _validate_user_form(request.form)
@@ -524,26 +657,24 @@ def admin_users_criar():
         senha = request.form.get("senha") or ""
         if senha and senha != confirmacao:
             errors.append("Senhas não conferem.")
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form, require_telefone=True)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_user_create.html",
+            return render_template(TEMPLATE_ADMIN_USER_CREATE,
                                    escolas=models.list_schools(ativo_only=False),
                                    form=request.form), 400
 
-        from werkzeug.security import generate_password_hash
-        models.create_user({
-            "nome": (request.form.get("nome") or "").strip(),
-            "email": (request.form.get("email") or "").strip(),
-            "password_hash": generate_password_hash(senha),
-            "role": request.form.get("role") or "usuario",
-            "escola_id": int(escola_id) if (escola_id := request.form.get("escola_id")) else None,
-            "ativo": 1 if request.form.get("ativo") == "1" else 0,
-        })
+        models.create_user(_build_admin_user_create_payload(
+            request.form, senha, telefone, whatsapp, consentimento,
+        ))
         flash(f"Usuário '{(request.form.get('nome') or '').strip()}' criado com papel {request.form.get('role') or 'usuario'}.", "success")
         return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
-    return render_template("admin_user_create.html",
+    return render_template(TEMPLATE_ADMIN_USER_CREATE,
                            escolas=models.list_schools(ativo_only=False), form={})
 
 
@@ -935,31 +1066,30 @@ def admin_dashboard():
 def perfil():
     user = current_user()
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        email = (request.form.get("email") or "").strip()
+        errors = _validate_perfil_update(request.form, user["email"])
         receber_emails = 1 if request.form.get("receber_emails") == "1" else 0
-        errors = []
-        if not nome:
-            errors.append(MSG_NOME_OBRIGATORIO)
-        if not email:
-            errors.append(MSG_EMAIL_OBRIGATORIO)
-        elif email != user["email"] and models.get_user_by_email(email):
-            errors.append(MSG_EMAIL_JA_CADASTRADO)
-        senha = request.form.get("senha") or ""
-        if senha and len(senha) < 4:
-            errors.append(MSG_SENHA_MINIMA)
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
             return render_template(TEMPLATE_PERFIL, form=request.form), 400
 
-        data = {"nome": nome, "email": email, "receber_emails": receber_emails}
-        if senha:
-            data["senha"] = senha
+        data = _build_perfil_update_data(
+            (request.form.get("nome") or "").strip(),
+            (request.form.get("email") or "").strip(),
+            receber_emails,
+            request.form.get("senha") or "",
+            telefone, whatsapp, consentimento,
+        )
         models.update_user(user["id"], data)
         flash("Perfil atualizado.", "success")
-        return redirect(url_for("games.perfil"))
-    return render_template(TEMPLATE_PERFIL, form=dict(user))
+        return redirect(url_for(ENDPOINT_PERFIL))
+    form = dict(user)
+    form["telefone_ddd"], form["telefone_numero"] = _split_telefone(form.get("telefone"))
+    return render_template(TEMPLATE_PERFIL, form=form)
 
 
 @bp.route("/media/<path:filename>", methods=["GET"])
