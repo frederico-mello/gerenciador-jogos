@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS loans (
     devolucao_prevista    DATE,
     renovacao_pendente    INTEGER DEFAULT 0,
     nova_devolucao_prevista DATE,
+    termos_aceite_at      TEXT,
+    termos_versao         TEXT,
     observacoes           TEXT,
     solicitado_at         TEXT,
     reservado_at          TEXT,

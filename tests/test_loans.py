@@ -37,6 +37,7 @@ class TestLoanCreation:
         _login(client)
 
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
             "devolucao_prevista": "2026-07-15",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -54,8 +55,9 @@ class TestLoanCreation:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
             "devolucao_prevista": "2026-07-20",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -64,8 +66,9 @@ class TestLoanCreation:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
             "devolucao_prevista": "2026-07-20",
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -77,6 +80,7 @@ class TestLoanCreation:
     def test_solicitar_sem_login_redirect(self, app, client):
         game_id = _create_game(app)
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
             "devolucao_prevista": "2026-07-15",
         }, follow_redirects=False)
         assert resp.status_code == 302
@@ -94,7 +98,7 @@ class TestUserLoanList:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         resp = client.get(f"/{game_id}")
         assert resp.status_code == 200
 
@@ -102,7 +106,7 @@ class TestUserLoanList:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         resp = client.get("/emprestimos")
         assert resp.status_code == 200
         assert b"Jogo Teste" in resp.data
@@ -119,7 +123,7 @@ class TestUserCancel:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         with app.app_context():
             loan_id = get_db().execute("SELECT id FROM loans").fetchone()["id"]
 
@@ -133,7 +137,7 @@ class TestUserCancel:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
         with app.app_context():
             db = get_db()
             loan_id = db.execute("SELECT id FROM loans").fetchone()["id"]
@@ -149,7 +153,7 @@ class TestUserRenew:
         game_id = _create_game(app)
         _create_user(app)
         _login(client)
-        client.post(f"/emprestimos/solicitar/{game_id}", data={"devolucao_prevista": "2026-07-15"})
+        client.post(f"/emprestimos/solicitar/{game_id}", data={"aceite_termos": "1", "devolucao_prevista": "2026-07-15"})
 
         with app.app_context():
             db = get_db()
@@ -336,3 +340,73 @@ class TestAuthorization:
     def test_admin_acessa_dashboard(self, app, admin_client):
         resp = admin_client.get("/admin/dashboard")
         assert resp.status_code == 200
+
+
+class TestLoanTerms:
+    def test_get_solicitar_exibe_terms_e_data(self, app, client):
+        game_id = _create_game(app)
+        _create_user(app)
+        _login(client)
+
+        resp = client.get(f"/emprestimos/solicitar/{game_id}")
+        assert resp.status_code == 200
+        assert b"Termos de Empr" in resp.data
+        assert b'devolucao_prevista' in resp.data
+        assert b'aceite_termos' in resp.data
+
+    def test_post_sem_aceite_rejeitado(self, app, client):
+        game_id = _create_game(app)
+        _create_user(app)
+        _login(client)
+
+        resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "devolucao_prevista": "2026-07-15",
+        }, follow_redirects=False)
+        assert resp.status_code == 400
+        assert b"precisa aceitar" in resp.data.lower()
+
+    def test_post_com_aceite_cria_loan_com_terms(self, app, client):
+        game_id = _create_game(app)
+        _create_user(app)
+        _login(client)
+
+        resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
+            "devolucao_prevista": "2026-07-15",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        with app.app_context():
+            db = get_db()
+            loan = db.execute("SELECT * FROM loans WHERE game_id = ?", (game_id,)).fetchone()
+            assert loan["termos_aceite_at"] is not None
+            assert loan["termos_versao"] is not None
+            assert len(loan["termos_versao"]) == 8
+
+    def test_confirmar_fila_com_aceite(self, app, client):
+        game_id = _create_game(app, area="microbiologia")
+        _create_user(app)
+        _login(client)
+        client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
+            "devolucao_prevista": "2026-07-15",
+        })
+
+        resp = client.get(f"/emprestimos/fila/confirmar/{game_id}")
+        assert resp.status_code == 200
+        assert b"Termos de Empr" in resp.data
+        assert b'aceite_termos' in resp.data
+
+    def test_entrar_fila_sem_aceite_rejeitado(self, app, client):
+        game_id = _create_game(app, area="microbiologia")
+        _create_user(app)
+        _login(client)
+        client.post(f"/emprestimos/solicitar/{game_id}", data={
+            "aceite_termos": "1",
+            "devolucao_prevista": "2026-07-15",
+        })
+
+        resp = client.post(f"/emprestimos/fila/entrar/{game_id}", data={
+        }, follow_redirects=False)
+        assert resp.status_code == 400
+        assert b"precisa aceitar" in resp.data.lower()

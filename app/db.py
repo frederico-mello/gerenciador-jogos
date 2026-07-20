@@ -37,6 +37,16 @@ def init_db(db_path):
             conn.commit()
         except sqlite3.OperationalError:
             conn.rollback()
+        try:
+            conn.execute("ALTER TABLE loans ADD COLUMN termos_aceite_at TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
+        try:
+            conn.execute("ALTER TABLE loans ADD COLUMN termos_versao TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            conn.rollback()
     finally:
         conn.close()
 
