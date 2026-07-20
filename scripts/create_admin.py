@@ -8,9 +8,6 @@ Se o email já existir:
 - Se for outro papel → oferece promoção a admin_sistema + reset de senha.
 """
 
-_APP_USER = "www-data"
-MSG_CANCELADO = MSG_CANCELADO
-
 import getpass
 import os
 import sys
@@ -41,8 +38,11 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from app.db import init_db, get_db
 
+MSG_CANCELADO = "Cancelado."
 
-def _handle_existing_user(email, senha, user):
+
+def _handle_existing_user(user, email, senha):
+    """Gerencia usuário já existente: reset de senha ou promoção."""
     from app.models import update_user
     if user["role"] == "admin_sistema":
         print(f"Email '{email}' já cadastrado como admin_sistema.")
@@ -62,12 +62,31 @@ def _handle_existing_user(email, senha, user):
         print(f"Usuário '{email}' (ID: {user['id']}) promovido a admin_sistema com senha atualizada.")
 
 
-def _confirm_new_admin(count):
+def _confirm_create_admin():
+    """Pergunta se deseja criar admin adicional quando já existe."""
+    from app.models import count_admins_sistema
+    count = count_admins_sistema()
     if count > 0:
         resp = input(f"Já existe {count} admin_sistema. Criar outro? (s/N): ").strip().lower()
         if resp != "s":
             print(MSG_CANCELADO)
             sys.exit(0)
+
+
+def _create_new_admin(nome, email, senha):
+    """Cria um novo admin_sistema."""
+    from app.models import create_user
+    user_id = create_user({
+        "nome": nome,
+        "email": email,
+        "password_hash": generate_password_hash(senha),
+        "role": "admin_sistema",
+        "ativo": 1,
+        "telefone": "",
+        "whatsapp": 0,
+        "consentimento": 0,
+    })
+    print(f"Admin criado: {email} (ID: {user_id})")
 
 
 def main():
@@ -93,23 +112,15 @@ def main():
 
     app = create_app({"DATABASE_PATH": str(db_path), "TESTING": True, "SECRET_KEY": "create-admin-secret"})
     with app.app_context():
-        from app.models import count_admins_sistema, get_user_by_email, create_user
+        from app.models import get_user_by_email
 
         user = get_user_by_email(email)
         if user:
-            _handle_existing_user(email, senha, user)
+            _handle_existing_user(user, email, senha)
             return
 
-        _confirm_new_admin(count_admins_sistema())
-
-        user_id = create_user({
-            "nome": nome,
-            "email": email,
-            "password_hash": generate_password_hash(senha),
-            "role": "admin_sistema",
-            "ativo": 1,
-        })
-        print(f"Admin criado: {email} (ID: {user_id})")
+        _confirm_create_admin()
+        _create_new_admin(nome, email, senha)
 
 
 if __name__ == "__main__":

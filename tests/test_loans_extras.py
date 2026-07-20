@@ -19,8 +19,8 @@ def _create_user(app, email="user_extras@teste.com", role="usuario"):
         from werkzeug.security import generate_password_hash
         db = get_db()
         db.execute(
-            "INSERT INTO users (nome, email, password_hash, role, ativo) VALUES (?, ?, ?, ?, 1)",
-            ("User Extras", email, generate_password_hash(TEST_PASSWORD), role),
+            "INSERT INTO users (nome, email, password_hash, role, ativo, telefone, whatsapp, consentimento) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
+            ("User Extras", email, generate_password_hash(TEST_PASSWORD), role, "11999998888", 0, 0),
         )
         db.commit()
         return db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
