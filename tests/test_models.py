@@ -35,6 +35,118 @@ class TestGames:
             games = _list_games(app, q="anatomia")
             assert len(games) == 1
 
+    def test_search_descricao(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Jogo A", "area": "anatomia",
+                "descricao": "Este jogo aborda mitose e meiose celular.",
+            })
+            create_game({
+                "nome": "Jogo B", "area": "histologia",
+                "descricao": "Estudo de tecidos epiteliais.",
+            })
+            games = _list_games(app, q="mitose")
+            assert len(games) == 1
+            assert games[0]["nome"] == "Jogo A"
+
+    def test_search_regras_resumo(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Jogo A", "area": "anatomia",
+                "regras_resumo": "Cada jogador compra 3 cartas por rodada.",
+            })
+            create_game({
+                "nome": "Jogo B", "area": "histologia",
+                "regras_resumo": "Role o dado e avance casas.",
+            })
+            games = _list_games(app, q="cartas")
+            assert len(games) == 1
+            assert games[0]["nome"] == "Jogo A"
+
+    def test_search_acento_descricao(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Jogo A", "area": "anatomia",
+                "descricao": "Estudo da mucósa intestinal.",
+            })
+            create_game({
+                "nome": "Jogo B", "area": "histologia",
+                "descricao": "Tecido conjuntivo.",
+            })
+            games = _list_games(app, q="mucosa")
+            assert len(games) == 1
+            assert games[0]["nome"] == "Jogo A"
+
+    def test_search_acento_nome(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "João e o Pé de Feijão", "area": "anatomia",
+            })
+            create_game({
+                "nome": "Maria Vai com as Outras", "area": "histologia",
+            })
+            games = _list_games(app, q="joao")
+            assert len(games) == 1
+            assert "João" in games[0]["nome"]
+
+    def test_search_multi_termo_and(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Jogo A", "area": "anatomia",
+                "descricao": "Estudo da anatomia celular.",
+            })
+            create_game({
+                "nome": "Jogo B", "area": "anatomia",
+                "descricao": "Sistema nervoso periférico.",
+            })
+            create_game({
+                "nome": "Jogo C", "area": "histologia",
+                "descricao": "Anatomia dos tecidos.",
+            })
+            games = _list_games(app, q="anatomia celular")
+            assert len(games) == 1
+            assert games[0]["nome"] == "Jogo A"
+
+    def test_search_multi_termo_campos_diferentes(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Mitose Game", "area": "anatomia",
+                "descricao": "Aprenda sobre divisão celular.",
+            })
+            create_game({
+                "nome": "Outro Jogo", "area": "histologia",
+                "descricao": "Estudo de mitose e meiose.",
+            })
+            games = _list_games(app, q="mitose celular")
+            assert len(games) == 1
+            assert games[0]["nome"] == "Mitose Game"
+
+    def test_search_termo_ausente(self, app):
+        with app.app_context():
+            _create_jogo(app, nome="Jogo A")
+            _create_jogo(app, nome="Jogo B", area="histologia")
+            games = _list_games(app, q="inexistente")
+            assert len(games) == 0
+
+    def test_search_escape_wildcards(self, app):
+        with app.app_context():
+            from app.models import create_game
+            create_game({
+                "nome": "Jogo 50% desconto", "area": "anatomia",
+            })
+            create_game({
+                "nome": "Jogo 50 pontos", "area": "histologia",
+            })
+            games = _list_games(app, q="50%")
+            assert len(games) == 1
+            assert "50%" in games[0]["nome"]
+
     def test_update(self, app):
         with app.app_context():
             gid = _create_jogo(app)
