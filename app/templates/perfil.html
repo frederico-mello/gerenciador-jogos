@@ -17,10 +17,10 @@
       <input id="senha" name="senha" type="password" />
     </div>
     <div class="field">
-      <label>Telefone</label>
+      <label for="telefone_ddd">Telefone</label>
       <div style="display:flex; gap:0.5rem;">
-        <input type="text" name="telefone_ddd" placeholder="DDD" maxlength="2" pattern="\d{2}" value="{{ form.telefone_ddd or '' }}" style="width:5ch;" />
-        <input type="text" name="telefone_numero" placeholder="Número" maxlength="9" pattern="\d{8,9}" value="{{ form.telefone_numero or '' }}" style="flex:1;" />
+        <input id="telefone_ddd" type="text" name="telefone_ddd" placeholder="DDD" maxlength="2" pattern="\d{2}" value="{{ form.telefone_ddd or '' }}" style="width:5ch;" />
+        <input id="telefone_numero" type="text" name="telefone_numero" placeholder="Número" maxlength="9" pattern="\d{8,9}" value="{{ form.telefone_numero or '' }}" style="flex:1;" />
       </div>
     </div>
     <div class="field">

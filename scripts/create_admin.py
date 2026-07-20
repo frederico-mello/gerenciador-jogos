@@ -38,6 +38,56 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from app.db import init_db, get_db
 
+MSG_CANCELADO = "Cancelado."
+
+
+def _handle_existing_user(user, email, senha):
+    """Gerencia usuário já existente: reset de senha ou promoção."""
+    from app.models import update_user
+    if user["role"] == "admin_sistema":
+        print(f"Email '{email}' já cadastrado como admin_sistema.")
+        resp = input("Deseja resetar a senha deste admin? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+        update_user(user["id"], {"senha": senha})
+        print(f"Senha do admin '{email}' (ID: {user['id']}) atualizada.")
+    else:
+        print(f"Email '{email}' já cadastrado como '{user['role']}'.")
+        resp = input(f"Deseja promover para admin_sistema e resetar a senha? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+        update_user(user["id"], {"role": "admin_sistema", "senha": senha})
+        print(f"Usuário '{email}' (ID: {user['id']}) promovido a admin_sistema com senha atualizada.")
+
+
+def _confirm_create_admin():
+    """Pergunta se deseja criar admin adicional quando já existe."""
+    from app.models import count_admins_sistema
+    count = count_admins_sistema()
+    if count > 0:
+        resp = input(f"Já existe {count} admin_sistema. Criar outro? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+
+
+def _create_new_admin(nome, email, senha):
+    """Cria um novo admin_sistema."""
+    from app.models import create_user
+    user_id = create_user({
+        "nome": nome,
+        "email": email,
+        "password_hash": generate_password_hash(senha),
+        "role": "admin_sistema",
+        "ativo": 1,
+        "telefone": "",
+        "whatsapp": 0,
+        "consentimento": 0,
+    })
+    print(f"Admin criado: {email} (ID: {user_id})")
+
 
 def main():
     import argparse
@@ -62,46 +112,15 @@ def main():
 
     app = create_app({"DATABASE_PATH": str(db_path), "TESTING": True, "SECRET_KEY": "create-admin-secret"})
     with app.app_context():
-        from app.models import count_admins_sistema, get_user_by_email, create_user, update_user
+        from app.models import get_user_by_email
 
         user = get_user_by_email(email)
         if user:
-            if user["role"] == "admin_sistema":
-                print(f"Email '{email}' já cadastrado como admin_sistema.")
-                resp = input("Deseja resetar a senha deste admin? (s/N): ").strip().lower()
-                if resp != "s":
-                    print("Cancelado.")
-                    sys.exit(0)
-                update_user(user["id"], {"senha": senha})
-                print(f"Senha do admin '{email}' (ID: {user['id']}) atualizada.")
-            else:
-                print(f"Email '{email}' já cadastrado como '{user['role']}'.")
-                resp = input(f"Deseja promover para admin_sistema e resetar a senha? (s/N): ").strip().lower()
-                if resp != "s":
-                    print("Cancelado.")
-                    sys.exit(0)
-                update_user(user["id"], {"role": "admin_sistema", "senha": senha})
-                print(f"Usuário '{email}' (ID: {user['id']}) promovido a admin_sistema com senha atualizada.")
+            _handle_existing_user(user, email, senha)
             return
 
-        count = count_admins_sistema()
-        if count > 0:
-            resp = input(f"Já existe {count} admin_sistema. Criar outro? (s/N): ").strip().lower()
-            if resp != "s":
-                print("Cancelado.")
-                sys.exit(0)
-
-        user_id = create_user({
-            "nome": nome,
-            "email": email,
-            "password_hash": generate_password_hash(senha),
-            "role": "admin_sistema",
-            "ativo": 1,
-            "telefone": "",
-            "whatsapp": 0,
-            "consentimento": 0,
-        })
-        print(f"Admin criado: {email} (ID: {user_id})")
+        _confirm_create_admin()
+        _create_new_admin(nome, email, senha)
 
 
 if __name__ == "__main__":
