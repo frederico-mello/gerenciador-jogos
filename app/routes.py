@@ -19,6 +19,10 @@ bp = Blueprint("games", __name__)
 
 ALLOWED_AREAS = ("anatomia", "histologia", "microbiologia")
 
+ENDPOINT_DETALHE = "games.detalhe"
+ENDPOINT_ADMIN_PICKUP_SLOTS = "games.admin_pickup_slots"
+TEMPLATE_PICKUP_SLOT_FORM = "admin_pickup_slot_form.html"
+
 
 @bp.app_context_processor
 def inject_current_user():
@@ -87,7 +91,7 @@ def registrar():
     return render_template("registrar.html", schools=models.list_schools(), form={})
 
 
-@bp.route("/logout")
+@bp.route("/logout", methods=["GET"])
 def logout():
     session.clear()
     flash("Sessão encerrada.", "success")
@@ -195,7 +199,7 @@ def novo():
         if manual_paths:
             models.set_manual_pages(game_id, manual_paths)
         flash(f"Jogo '{nome}' criado.", "success")
-        return redirect(url_for("games.detalhe", game_id=game_id))
+        return redirect(url_for(ENDPOINT_DETALHE, game_id=game_id))
 
     return render_template("form.html", game=None, areas=ALLOWED_AREAS, form={})
 
@@ -271,7 +275,7 @@ def editar(game_id):
         if manual_paths is not None:
             models.set_manual_pages(game_id, manual_paths)
         flash(f"Jogo '{nome}' atualizado.", "success")
-        return redirect(url_for("games.detalhe", game_id=game_id))
+        return redirect(url_for(ENDPOINT_DETALHE, game_id=game_id))
 
     pages = models.list_manual_pages(game_id)
     return render_template("form.html", game=game, areas=ALLOWED_AREAS,
@@ -293,7 +297,7 @@ def excluir(game_id):
     return redirect(url_for("games.index"))
 
 
-@bp.route("/admin/schools")
+@bp.route("/admin/schools", methods=["GET"])
 @role_required("admin_sistema")
 def admin_schools():
     rede = request.args.get("rede") or None
@@ -384,41 +388,46 @@ def admin_schools_reativar(school_id):
     return redirect(url_for("games.admin_schools"))
 
 
-@bp.route("/admin/pickup-slots")
+@bp.route("/admin/pickup-slots", methods=["GET"])
 @role_required("admin_sistema")
 def admin_pickup_slots():
     slots = models.list_pickup_slots(ativo_only=False)
     return render_template("admin_pickup_slots.html", slots=slots)
 
 
+def _parse_pickup_slot_form():
+    try:
+        dia_semana = int(request.form.get("dia_semana", ""))
+    except (TypeError, ValueError):
+        dia_semana = -1
+    hora = (request.form.get("hora") or "").strip()
+    errors = []
+    if not (0 <= dia_semana <= 6):
+        errors.append("Dia da semana invalido.")
+    if not hora or not (len(hora) == 5 and hora[2] == ":"):
+        errors.append("Horario invalido (use HH:MM).")
+    return dia_semana, hora, errors
+
+
 @bp.route("/admin/pickup-slots/criar", methods=["GET", "POST"])
 @role_required("admin_sistema")
 def admin_pickup_slots_criar():
     if request.method == "POST":
-        try:
-            dia_semana = int(request.form.get("dia_semana", ""))
-        except (TypeError, ValueError):
-            dia_semana = -1
-        hora = (request.form.get("hora") or "").strip()
-        errors = []
-        if not (0 <= dia_semana <= 6):
-            errors.append("Dia da semana invalido.")
-        if not hora or not (len(hora) == 5 and hora[2] == ":"):
-            errors.append("Horario invalido (use HH:MM).")
+        dia_semana, hora, errors = _parse_pickup_slot_form()
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_pickup_slot_form.html", slot=None, form=request.form), 400
+            return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=None, form=request.form), 400
 
         slot_id = models.create_pickup_slot(dia_semana, hora)
         if slot_id is None:
             flash("Ja existe um horario ativo para este dia/hora.", "error")
-            return render_template("admin_pickup_slot_form.html", slot=None, form=request.form), 400
+            return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=None, form=request.form), 400
 
         flash("Horario criado.", "success")
-        return redirect(url_for("games.admin_pickup_slots"))
+        return redirect(url_for(ENDPOINT_ADMIN_PICKUP_SLOTS))
 
-    return render_template("admin_pickup_slot_form.html", slot=None, form={})
+    return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=None, form={})
 
 
 @bp.route("/admin/pickup-slots/<int:slot_id>/editar", methods=["GET", "POST"])
@@ -429,29 +438,20 @@ def admin_pickup_slots_editar(slot_id):
         abort(404)
 
     if request.method == "POST":
-        try:
-            dia_semana = int(request.form.get("dia_semana", ""))
-        except (TypeError, ValueError):
-            dia_semana = -1
-        hora = (request.form.get("hora") or "").strip()
-        errors = []
-        if not (0 <= dia_semana <= 6):
-            errors.append("Dia da semana invalido.")
-        if not hora or not (len(hora) == 5 and hora[2] == ":"):
-            errors.append("Horario invalido (use HH:MM).")
+        dia_semana, hora, errors = _parse_pickup_slot_form()
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_pickup_slot_form.html", slot=slot, form=request.form), 400
+            return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=slot, form=request.form), 400
 
         if not models.update_pickup_slot(slot_id, {"dia_semana": dia_semana, "hora": hora}):
             flash("Ja existe um horario ativo para este dia/hora.", "error")
-            return render_template("admin_pickup_slot_form.html", slot=slot, form=request.form), 400
+            return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=slot, form=request.form), 400
 
         flash("Horario atualizado.", "success")
-        return redirect(url_for("games.admin_pickup_slots"))
+        return redirect(url_for(ENDPOINT_ADMIN_PICKUP_SLOTS))
 
-    return render_template("admin_pickup_slot_form.html", slot=slot, form={})
+    return render_template(TEMPLATE_PICKUP_SLOT_FORM, slot=slot, form={})
 
 
 @bp.route("/admin/pickup-slots/<int:slot_id>/inativar", methods=["POST"])
@@ -462,7 +462,7 @@ def admin_pickup_slots_inativar(slot_id):
         abort(404)
     models.set_pickup_slot_ativo(slot_id, 0)
     flash("Horario inativado.", "success")
-    return redirect(url_for("games.admin_pickup_slots"))
+    return redirect(url_for(ENDPOINT_ADMIN_PICKUP_SLOTS))
 
 
 @bp.route("/admin/pickup-slots/<int:slot_id>/reativar", methods=["POST"])
@@ -473,10 +473,10 @@ def admin_pickup_slots_reativar(slot_id):
         abort(404)
     models.set_pickup_slot_ativo(slot_id, 1)
     flash("Horario reativado.", "success")
-    return redirect(url_for("games.admin_pickup_slots"))
+    return redirect(url_for(ENDPOINT_ADMIN_PICKUP_SLOTS))
 
 
-@bp.route("/admin/users")
+@bp.route("/admin/users", methods=["GET"])
 @role_required("admin_sistema")
 def admin_users():
     role = request.args.get("role") or None
@@ -764,7 +764,7 @@ def solicitar_emprestimo(game_id):
     slot = models.get_pickup_slot(pickup_slot_id) if pickup_slot_id else None
     if not slot or not slot["ativo"]:
         flash("Selecione um horario de retirada valido.", "error")
-        return redirect(url_for("games.detalhe", game_id=game_id))
+        return redirect(url_for(ENDPOINT_DETALHE, game_id=game_id))
 
     devolucao_prevista = request.form.get("devolucao_prevista") or ""
     if not devolucao_prevista:
