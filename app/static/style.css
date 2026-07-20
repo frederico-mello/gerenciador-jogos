@@ -98,7 +98,7 @@ a {
 .flash-success {
   background: #eafff1;
   border-color: #bfe7cb;
-  color: #178a3a;
+  color: #0d6b27;
 }
 
 .list-header {
@@ -553,13 +553,13 @@ textarea {
 }
 
 .btn-success {
-  background: #178a3a;
-  border-color: #178a3a;
+  background: #0d6b27;
+  border-color: #0d6b27;
   color: #fff;
 }
 
 .btn-success:hover {
-  background: #146e2e;
+  background: #0a5c20;
 }
 
 .table {

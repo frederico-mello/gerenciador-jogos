@@ -3,6 +3,8 @@
 import pytest
 from app.db import get_db
 
+from conftest import TEST_PASSWORD
+
 
 def _create_game(app, nome="Jogo Teste", area="anatomia"):
     with app.app_context():
@@ -18,14 +20,14 @@ def _create_user(app, nome="User Teste", email="user@teste.com", role="usuario")
         db = get_db()
         db.execute(
             "INSERT INTO users (nome, email, password_hash, role, ativo) VALUES (?, ?, ?, ?, 1)",
-            (nome, email, generate_password_hash("senha123"), role),
+            (nome, email, generate_password_hash(TEST_PASSWORD), role),
         )
         db.commit()
         return db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
 
 
 def _login(client, email="user@teste.com"):
-    client.post("/login", data={"email": email, "senha": "senha123"})
+    client.post("/login", data={"email": email, "senha": TEST_PASSWORD})
 
 
 class TestLoanCreation:

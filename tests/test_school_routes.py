@@ -1,5 +1,7 @@
 """Testes para rotas de admin de escolas (requerem login como admin_sistema)."""
 
+from conftest import TEST_PASSWORD
+
 
 class TestAdminSchools:
     def test_list_get(self, admin_client):
@@ -74,11 +76,11 @@ class TestAdminSchools:
             create_user({
                 "nome": "Usuario Comum",
                 "email": "comum@teste.com",
-                "password_hash": generate_password_hash("123456"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
             })
-        client.post("/login", data={"email": "comum@teste.com", "senha": "123456"})
+        client.post("/login", data={"email": "comum@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/admin/schools")
         assert resp.status_code == 403
 

@@ -8,6 +8,9 @@ Se o email já existir:
 - Se for outro papel → oferece promoção a admin_sistema + reset de senha.
 """
 
+_APP_USER = "www-data"
+MSG_CANCELADO = MSG_CANCELADO
+
 import getpass
 import os
 import sys
@@ -39,6 +42,34 @@ from app import create_app
 from app.db import init_db, get_db
 
 
+def _handle_existing_user(email, senha, user):
+    from app.models import update_user
+    if user["role"] == "admin_sistema":
+        print(f"Email '{email}' já cadastrado como admin_sistema.")
+        resp = input("Deseja resetar a senha deste admin? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+        update_user(user["id"], {"senha": senha})
+        print(f"Senha do admin '{email}' (ID: {user['id']}) atualizada.")
+    else:
+        print(f"Email '{email}' já cadastrado como '{user['role']}'.")
+        resp = input(f"Deseja promover para admin_sistema e resetar a senha? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+        update_user(user["id"], {"role": "admin_sistema", "senha": senha})
+        print(f"Usuário '{email}' (ID: {user['id']}) promovido a admin_sistema com senha atualizada.")
+
+
+def _confirm_new_admin(count):
+    if count > 0:
+        resp = input(f"Já existe {count} admin_sistema. Criar outro? (s/N): ").strip().lower()
+        if resp != "s":
+            print(MSG_CANCELADO)
+            sys.exit(0)
+
+
 def main():
     import argparse
 
@@ -62,34 +93,14 @@ def main():
 
     app = create_app({"DATABASE_PATH": str(db_path), "TESTING": True, "SECRET_KEY": "create-admin-secret"})
     with app.app_context():
-        from app.models import count_admins_sistema, get_user_by_email, create_user, update_user
+        from app.models import count_admins_sistema, get_user_by_email, create_user
 
         user = get_user_by_email(email)
         if user:
-            if user["role"] == "admin_sistema":
-                print(f"Email '{email}' já cadastrado como admin_sistema.")
-                resp = input("Deseja resetar a senha deste admin? (s/N): ").strip().lower()
-                if resp != "s":
-                    print("Cancelado.")
-                    sys.exit(0)
-                update_user(user["id"], {"senha": senha})
-                print(f"Senha do admin '{email}' (ID: {user['id']}) atualizada.")
-            else:
-                print(f"Email '{email}' já cadastrado como '{user['role']}'.")
-                resp = input(f"Deseja promover para admin_sistema e resetar a senha? (s/N): ").strip().lower()
-                if resp != "s":
-                    print("Cancelado.")
-                    sys.exit(0)
-                update_user(user["id"], {"role": "admin_sistema", "senha": senha})
-                print(f"Usuário '{email}' (ID: {user['id']}) promovido a admin_sistema com senha atualizada.")
+            _handle_existing_user(email, senha, user)
             return
 
-        count = count_admins_sistema()
-        if count > 0:
-            resp = input(f"Já existe {count} admin_sistema. Criar outro? (s/N): ").strip().lower()
-            if resp != "s":
-                print("Cancelado.")
-                sys.exit(0)
+        _confirm_new_admin(count_admins_sistema())
 
         user_id = create_user({
             "nome": nome,

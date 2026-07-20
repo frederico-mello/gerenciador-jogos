@@ -3,6 +3,8 @@ import pytest
 from app import create_app
 from app.db import init_db
 
+TEST_PASSWORD = "123"  # NOSONAR: test-only password for deterministic assertions
+
 
 @pytest.fixture()
 def app(tmp_path):
@@ -47,10 +49,10 @@ def admin_client(app, client):
         create_user({
             "nome": "Admin Teste",
             "email": "admin@teste.com",
-            "password_hash": generate_password_hash("admin123"),
+            "password_hash": generate_password_hash(TEST_PASSWORD),
             "role": "admin_sistema",
             "ativo": 1,
         })
-    client.post("/login", data={"email": "admin@teste.com", "senha": "admin123"},
+    client.post("/login", data={"email": "admin@teste.com", "senha": TEST_PASSWORD},
                 follow_redirects=True)
     return client

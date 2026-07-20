@@ -5,14 +5,16 @@
 
 <div class="toolbar">
   <form class="filters" method="get" action="{{ url_for('games.admin_schools') }}">
-    <select name="rede" onchange="this.form.submit()">
+    <label for="rede-filter" class="visually-hidden">Filtrar por rede</label>
+    <select id="rede-filter" name="rede" onchange="this.form.submit()">
       <option value="">Todas as redes</option>
       <option value="federal" {% if rede == 'federal' %}selected{% endif %}>Federal</option>
       <option value="estadual" {% if rede == 'estadual' %}selected{% endif %}>Estadual</option>
       <option value="municipal" {% if rede == 'municipal' %}selected{% endif %}>Municipal</option>
       <option value="privada" {% if rede == 'privada' %}selected{% endif %}>Privada</option>
     </select>
-    <input type="search" name="q" placeholder="Buscar por nome…" value="{{ q or '' }}" />
+    <label for="search-school" class="visually-hidden">Buscar escola</label>
+    <input id="search-school" type="search" name="q" placeholder="Buscar por nome…" value="{{ q or '' }}" />
     <button type="submit">Filtrar</button>
   </form>
   <a class="btn btn-primary" href="{{ url_for('games.admin_schools_criar') }}">Nova escola</a>

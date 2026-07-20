@@ -102,9 +102,9 @@ def main():
     parser.add_argument("--csv", required=True, help="Caminho para o CSV dos microdados")
     args = parser.parse_args()
 
-    csv_path = Path(args.csv)
-    if not csv_path.exists():
-        print(f"ERRO: Arquivo não encontrado: {csv_path}", file=sys.stderr)
+    csv_path = Path(args.csv).resolve()
+    if not csv_path.is_file():
+        print(f"ERRO: Caminho inválido ou arquivo não encontrado: {csv_path}", file=sys.stderr)
         sys.exit(1)
 
     base_dir = Path(__file__).resolve().parent.parent

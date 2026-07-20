@@ -41,7 +41,8 @@
         <a class="btn btn-sm" href="{{ url_for('games.admin_users_editar', user_id=u.id) }}">Editar</a>
         <form method="post" action="{{ url_for('games.admin_users_role', user_id=u.id) }}" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <select name="role" onchange="this.form.submit()">
+    <label for="role-filter" class="visually-hidden">Filtrar por papel</label>
+    <select id="role-filter" name="role" onchange="this.form.submit()">
             <option value="usuario" {% if u.role == 'usuario' %}selected{% endif %}>Usuário</option>
             <option value="admin_jogos" {% if u.role == 'admin_jogos' %}selected{% endif %}>Admin Jogos</option>
             <option value="admin_sistema" {% if u.role == 'admin_sistema' %}selected{% endif %}>Admin Sistema</option>
