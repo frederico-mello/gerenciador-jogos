@@ -38,7 +38,86 @@ def _send(config, msg):
                 server.login(config["user"], config["password"])
             server.send_message(msg)
     except Exception:
-        pass  # Silently fail - notifications are best-effort
+        pass
+
+
+def _game_email(user, game, subject, body):
+    send_email(user["email"], subject, body)
+
+
+def _pickup_slot_info(loan):
+    from . import models
+    if not loan.get("pickup_slot_id"):
+        return ""
+    slot = models.get_pickup_slot(loan["pickup_slot_id"])
+    if not slot:
+        return ""
+    return models.format_pickup_slot(slot)
+
+
+def _notify_loan_approved(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    slot_info = ""
+    if loan["pickup_slot_id"]:
+        slot = models.get_pickup_slot(loan["pickup_slot_id"])
+        if slot:
+            slot_info = f" Horario confirmado: {models.format_pickup_slot(slot)}. Compareca ao balcao neste horario."
+    _game_email(user, game, f"Emprestimo reservado: {game['nome']}",
+                f"Seu emprestimo de '{game['nome']}' foi reservado.{slot_info}")
+
+
+def _notify_pickup_requested(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    slot_info = "Aguardando definicao de horario."
+    if loan["pickup_slot_id"]:
+        slot = models.get_pickup_slot(loan["pickup_slot_id"])
+        if slot:
+            slot_info = f"Horario solicitado: {models.format_pickup_slot(slot)}."
+    _game_email(user, game, f"Solicitacao recebida: {game['nome']}",
+                f"Recebemos sua solicitacao para '{game['nome']}'. {slot_info} Aguarde aprovacao.")
+
+
+def _notify_loan_loaned(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    _game_email(user, game, f"Jogo emprestado: {game['nome']}",
+                f"O jogo '{game['nome']}' foi emprestado a voce. "
+                f"Devolucao prevista: {loan.get('devolucao_prevista', 'a combinar')}.")
+
+
+def _notify_renewal_approved(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    _game_email(user, game, f"Renovacao aprovada: {game['nome']}",
+                f"Sua renovacao de '{game['nome']}' foi aprovada. "
+                f"Nova devolucao prevista: {loan.get('devolucao_prevista', 'a combinar')}.")
+
+
+def _notify_renewal_rejected(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    _game_email(user, game, f"Renovacao rejeitada: {game['nome']}",
+                f"Sua renovacao de '{game['nome']}' foi rejeitada. Devolva o jogo na data prevista.")
+
+
+def _notify_overdue(user, loan):
+    from . import models
+    game = models.get_game(loan["game_id"])
+    _game_email(user, game, f"Devolucao atrasada: {game['nome']}",
+                f"O jogo '{game['nome']}' esta com devolucao atrasada. "
+                f"Devolucao prevista era: {loan.get('devolucao_prevista', 'desconhecida')}.")
+
+
+_NOTIFICATION_HANDLERS = {
+    "loan_approved": _notify_loan_approved,
+    "pickup_requested": _notify_pickup_requested,
+    "loan_loaned": _notify_loan_loaned,
+    "renewal_approved": _notify_renewal_approved,
+    "renewal_rejected": _notify_renewal_rejected,
+    "overdue": _notify_overdue,
+}
 
 
 def send_notification(tipo, loan, user=None, extra=None):
@@ -52,51 +131,13 @@ def send_notification(tipo, loan, user=None, extra=None):
         receber = user["receber_emails"]
     except (KeyError, IndexError, TypeError):
         receber = 0
-    if not receber:
-        return  # Opt-out
-
-    if loan is None:
+    if not receber or loan is None:
         return
 
-    if tipo == "loan_approved":
-        game = models.get_game(loan["game_id"])
-        slot_info = ""
-        if loan["pickup_slot_id"]:
-            slot = models.get_pickup_slot(loan["pickup_slot_id"])
-            if slot:
-                slot_info = f" Horario confirmado: {models.format_pickup_slot(slot)}. Compareca ao balcao neste horario."
-        send_email(user["email"], f"Emprestimo reservado: {game['nome']}",
-                   f"Seu emprestimo de '{game['nome']}' foi reservado.{slot_info}")
-    elif tipo == "pickup_requested":
-        game = models.get_game(loan["game_id"])
-        slot_info = "Aguardando definicao de horario."
-        if loan["pickup_slot_id"]:
-            slot = models.get_pickup_slot(loan["pickup_slot_id"])
-            if slot:
-                slot_info = f"Horario solicitado: {models.format_pickup_slot(slot)}."
-        send_email(user["email"], f"Solicitacao recebida: {game['nome']}",
-                   f"Recebemos sua solicitacao para '{game['nome']}'. {slot_info} Aguarde aprovacao.")
-    elif tipo == "loan_loaned":
-        game = models.get_game(loan["game_id"])
-        send_email(user["email"], f"Jogo emprestado: {game['nome']}",
-                   f"O jogo '{game['nome']}' foi emprestado a você. "
-                   f"Devolução prevista: {loan.get('devolucao_prevista', 'a combinar')}.")
-    elif tipo == "renewal_approved":
-        game = models.get_game(loan["game_id"])
-        send_email(user["email"], f"Renovação aprovada: {game['nome']}",
-                   f"Sua renovação de '{game['nome']}' foi aprovada. "
-                   f"Nova devolução prevista: {loan.get('devolucao_prevista', 'a combinar')}.")
-    elif tipo == "renewal_rejected":
-        game = models.get_game(loan["game_id"])
-        send_email(user["email"], f"Renovação rejeitada: {game['nome']}",
-                   f"Sua renovação de '{game['nome']}' foi rejeitada. Devolva o jogo na data prevista.")
-    elif tipo == "overdue":
-        game = models.get_game(loan["game_id"])
-        send_email(user["email"], f"Devolução atrasada: {game['nome']}",
-                   f"O jogo '{game['nome']}' está com devolução atrasada. "
-                   f"Devolução prevista era: {loan.get('devolucao_prevista', 'desconhecida')}.")
-    elif tipo == "queue_available":
-        if extra:
-            send_email(extra["email"], "Jogo disponível!",
-                       f"O jogo que você reservou está disponível. "
-                       f"Procure o administrador para retirar.")
+    handler = _NOTIFICATION_HANDLERS.get(tipo)
+    if handler:
+        handler(user, loan)
+    elif tipo == "queue_available" and extra:
+        send_email(extra["email"], "Jogo disponivel!",
+                   "O jogo que voce reservou esta disponivel. "
+                   "Procure o administrador para retirar.")

@@ -29,7 +29,7 @@ def _create_user(app, nome="User Slot", email="user_slot@teste.com", role="usuar
         db = get_db()
         db.execute(
             "INSERT INTO users (nome, email, password_hash, role, ativo) VALUES (?, ?, ?, ?, 1)",
-            (nome, email, generate_password_hash("senha123"), role),
+            (nome, email, generate_password_hash("teste@2026#abc"), role),
         )
         db.commit()
         return db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
@@ -146,7 +146,7 @@ class TestPickupSlotSelection:
         slot_id = _create_pickup_slot(app, 0, "09:00")
         game_id = _create_game(app)
         _create_user(app)
-        client.post("/login", data={"email": "user_slot@teste.com", "senha": "senha123"})
+        client.post("/login", data={"email": "user_slot@teste.com", "senha": "teste@2026#abc"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
             "pickup_slot_id": str(slot_id),
             "devolucao_prevista": "2026-07-15",
@@ -161,7 +161,7 @@ class TestPickupSlotSelection:
     def test_solicitar_invalid_slot(self, app, client):
         game_id = _create_game(app)
         _create_user(app)
-        client.post("/login", data={"email": "user_slot@teste.com", "senha": "senha123"})
+        client.post("/login", data={"email": "user_slot@teste.com", "senha": "teste@2026#abc"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
             "pickup_slot_id": "99999",
             "devolucao_prevista": "2026-07-15",
@@ -199,7 +199,7 @@ class TestApprovalSlotValidation:
 
         game_id = _create_game(app)
         _create_user(app)
-        client.post("/login", data={"email": "user_slot@teste.com", "senha": "senha123"})
+        client.post("/login", data={"email": "user_slot@teste.com", "senha": "teste@2026#abc"})
         resp = client.post(f"/emprestimos/solicitar/{game_id}", data={
             "pickup_slot_id": str(slot_id),
             "devolucao_prevista": "2026-07-15",
