@@ -1,0 +1,14 @@
+schema: spec-driven
+
+context: |
+  MANDATORY: Invoke the 'openspec-apply-change' skill immediately when implementing a change.
+
+rules:
+  proposal:
+    - "MANDATORY: Invoke the 'openspec-new-change' skill BEFORE writing the proposal."
+  specs:
+    - "MANDATORY: Invoke the 'openspec-continue-change' skill BEFORE writing any specification."
+  design:
+    - "MANDATORY: Invoke the 'openspec-continue-change' skill BEFORE writing the design document."
+  tasks:
+    - "MANDATORY: Invoke the 'openspec-continue-change' skill BEFORE writing the tasks file."
