@@ -12,6 +12,7 @@ from flask import (
 from werkzeug.security import check_password_hash
 
 from . import models
+from .models import GameHasActiveLoansError
 from .auth import login_required, role_required, current_user
 from .importer import slugify, resize_image
 from .db import init_db, get_db
@@ -479,9 +480,17 @@ def excluir(game_id):
     nome = game["nome"]
     area = game["area"]
     slug = slugify(nome)
-    models.delete_game(game_id)
+    try:
+        models.delete_game(game_id)
+    except GameHasActiveLoansError as exc:
+        flash(
+            ("Jogo %s nao pode ser excluido: %s. "
+             "Devolva ou cancele os emprestimos ativos antes.") % (nome, exc),
+            "error",
+        )
+        return redirect(url_for("games.detalhe", game_id=game_id))
     _remove_game_files(area, slug)
-    flash(f"Jogo '{nome}' excluído.", "success")
+    flash("Jogo %s excluido." % nome, "success")
     return redirect(url_for(ENDPOINT_INDEX))
 
 

@@ -142,9 +142,33 @@ def update_game(game_id, data):
     db.commit()
 
 
+ACTIVE_LOAN_STATUSES = ("solicitado", "reservado", "emprestado")
+
+
+class GameHasActiveLoansError(Exception):
+    """Levantada quando se tenta excluir um jogo com emprestimos ativos."""
+
+    def __init__(self, count):
+        super().__init__(f"Existem {count} emprestimo(s) ativo(s) para este jogo.")
+        self.count = count
+
+
 def delete_game(game_id):
-    """Remove um jogo (e suas páginas em cascade)."""
+    """Remove um jogo, suas paginas de manual, fila e emprestimos.
+
+    Emprestimos ativos (solicitado, reservado, emprestado) bloqueiam
+    a exclusao: o administrador precisa devolve-los ou cancela-los
+    antes. Emprestimos historicos (devolvido, cancelado) sao
+    removidos junto com o jogo via ON DELETE CASCADE.
+    """
     db = get_db()
+    placeholders = ",".join("?" for _ in ACTIVE_LOAN_STATUSES)
+    row = db.execute(
+        f"SELECT COUNT(*) FROM loans WHERE game_id = ? AND status IN ({placeholders})",
+        (game_id, *ACTIVE_LOAN_STATUSES),
+    ).fetchone()
+    if row and row[0]:
+        raise GameHasActiveLoansError(row[0])
     db.execute("DELETE FROM games WHERE id = ?", (game_id,))
     db.commit()
 
