@@ -28,6 +28,28 @@ O sistema SHALL manter um catálogo de jogos em um banco SQLite local (`instance
 #### Scenario: Operação DELETE
 - **WHEN** o usuário confirma exclusão via `POST /<id>/excluir`
 - **THEN** a linha correspondente é removida de `games` e suas páginas de manual são removidas em cascata de `game_manual_pages` (ON DELETE CASCADE)
+### Requirement: Bloqueio de exclusão de jogos com empréstimos ativos
+O sistema NÃO SHALL excluir um jogo que possua ao menos um empréstimo com status ativo (`solicitado`, `reservado` ou `emprestado`). Ao confirmar a exclusão via `POST /<id>/excluir`, o sistema deve verificar a existência de empréstimos ativos e, havendo algum, NÃO remover o jogo, exibir uma mensagem de erro orientando que o administrador deva devolver ou cancelar os empréstimos ativos antes, e redirecionar de volta para a página do jogo (`GET /<id>`). O sistema NÃO SHALL mover nem remover os arquivos de dados do jogo neste caso.
+
+#### Scenario: Excluir jogo emprestado
+- **WHEN** um administrador confirma a exclusão de um jogo que possui um empréstimo com `status='emprestado'` via `POST /<id>/excluir`
+- **THEN** o jogo NÃO é removido do catálogo, aparece flash de erro informando que existem empréstimos ativos e o administrador é redirecionado para a página do jogo
+
+#### Scenario: Excluir jogo com solicitação em aberto
+- **WHEN** um administrador confirma a exclusão de um jogo que possui um empréstimo com `status='solicitado'` via `POST /<id>/excluir`
+- **THEN** o jogo NÃO é removido, aparece flash de erro e o administrador é redirecionado para a página do jogo
+
+#### Scenario: Excluir jogo após resolver empréstimos
+- **WHEN** um administrador devolve ou cancela todos os empréstimos ativos de um jogo e só então confirma a exclusão
+- **THEN** o jogo é removido do catálogo, os empréstimos históricos são removidos em cascata e os arquivos de dados são apagados
+
+### Requirement: Remoção em cascata de empréstimos e filas
+O sistema SHALL remover, em cascata, todas as linhas de `loans` e de `reservation_queue` cujo `game_id` aponte para um jogo excluído, de forma que nenhum empréstimo ou entrada de fique órfão após a exclusão. A exclusão do jogo via `POST /<id>/excluir` deve propagar a remoção para essas tabelas.
+
+#### Scenario: Exclusão remove empréstimos e filas associados
+- **WHEN** um jogo com empréstimos e entradas de fila é excluído
+- **THEN** todas as linhas de `loans` e `reservation_queue` associadas a esse `game_id` são removidas simultaneamente
+
 
 ### Requirement: Manuais multipágina
 O sistema SHALL suportar manuais com múltiplas páginas, armazenadas na tabela `game_manual_pages` com campos: `id` (PK), `game_id` (FK → games(id) ON DELETE CASCADE), `ordem` (INTEGER), `path` (TEXT, relativo a `data/`). Cada jogo pode ter zero ou mais páginas de manual, ordenadas por `ordem`.
@@ -40,8 +62,13 @@ O sistema SHALL suportar manuais com múltiplas páginas, armazenadas na tabela 
 - **WHEN** um jogo com manuais é excluído
 - **THEN** todas as linhas em `game_manual_pages` com o `game_id` correspondente são removidas automaticamente por cascade
 
-### Requirement: Filtro por área e busca por nome
-O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto no nome, via query string `?area=<area>&q=<texto>`.
+### Requirement: Filtro por área e busca textual
+O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto nos campos `nome`, `descricao` e `regras_resumo`, via query string `?area=<area>&q=<texto>`.
+
+A busca SHALL ser:
+- **Insensível a acentos**: uma consulta digitada sem acento (ex.: "mucosa") deve encontrar registros que contenham o termo com ou sem acento (ex.: "mucósa").
+- **Multi-termo com lógica AND**: quando `q` contiver múltiplas palavras separadas por espaço, todas devem aparecer em pelo menos um dos campos pesquisados (nome, descricao ou regras_resumo), em qualquer ordem.
+- **Insensível a maiúsculas/minúsculas**: a comparação deve ignorar capitalização.
 
 #### Scenario: Filtro por área
 - **WHEN** o usuário acessa `GET /?area=anatomia`
@@ -51,9 +78,25 @@ O sistema SHALL permitir filtrar a lista de jogos por área e buscar por texto n
 - **WHEN** o usuário acessa `GET /?q=memotomia`
 - **THEN** apenas jogos cujo `nome` contém "memotomia" (case-insensitive) são listados
 
+#### Scenario: Busca por texto na descrição
+- **WHEN** o usuário acessa `GET /?q=mitose`
+- **THEN** jogos cujo campo `descricao` ou `regras_resumo` contém "mitose" são listados, mesmo que o termo não apareça no `nome`
+
+#### Scenario: Busca insensível a acentos na descrição
+- **WHEN** o usuário acessa `GET /?q=mucosa`
+- **THEN** jogos cujo campo `descricao` contém "mucósa" (com acento) são listados
+
+#### Scenario: Busca insensível a acentos no nome
+- **WHEN** o usuário acessa `GET /?q=joao`
+- **THEN** jogos cujo `nome` contém "João" são listados
+
+#### Scenario: Busca com múltiplos termos
+- **WHEN** o usuário acessa `GET /?q=anatomia celula`
+- **THEN** apenas jogos que contenham tanto "anatomia" quanto "celula" (em qualquer combinação dos campos nome, descricao ou regras_resumo) são listados
+
 #### Scenario: Filtro combinado
 - **WHEN** o usuário acessa `GET /?area=histologia&q=celula`
-- **THEN** apenas jogos de histologia cujo nome contém "celula" são listados
+- **THEN** apenas jogos de histologia cujo nome, descricao ou regras_resumo contêm "celula" são listados
 
 ### Requirement: Validação de campos obrigatórios
 O sistema SHALL validar que `nome` e `area` são obrigatórios no form de criar/editar. `area` deve ser um dos três valores permitidos.

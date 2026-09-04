@@ -6,3 +6,4 @@ markdown>=3.5
 pytest>=8.0
 python-dotenv>=1.0
 gunicorn>=23.0
+bleach>=6.0

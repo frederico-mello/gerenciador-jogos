@@ -2,6 +2,8 @@
 
 import pytest
 
+from conftest import TEST_PASSWORD
+
 
 class TestLogin:
     def test_success(self, admin_client):
@@ -15,7 +17,7 @@ class TestLogin:
         assert b"Credenciais" in resp.data
 
     def test_nonexistent_email(self, client):
-        resp = client.post("/login", data={"email": "naoexiste@teste.com", "senha": "123"},
+        resp = client.post("/login", data={"email": "naoexiste@teste.com", "senha": TEST_PASSWORD},
                            follow_redirects=True)
         assert b"Credenciais" in resp.data
 
@@ -26,11 +28,14 @@ class TestLogin:
             create_user({
                 "nome": "Inativo",
                 "email": "inativo@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 0,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        resp = client.post("/login", data={"email": "inativo@teste.com", "senha": "123"},
+        resp = client.post("/login", data={"email": "inativo@teste.com", "senha": TEST_PASSWORD},
                            follow_redirects=True)
         assert b"inativa" in resp.data or b"inativo" in resp.data
 
@@ -44,6 +49,10 @@ class TestRegistro:
             "senha": "123456",
             "confirmacao": "123456",
             "escola_id": "1",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert resp.status_code == 200
         assert b"Conta criada" in resp.data
@@ -56,6 +65,10 @@ class TestRegistro:
             "senha": "123456",
             "confirmacao": "654321",
             "escola_id": "1",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"n\xc3\xa3o conferem" in resp.data
 
@@ -69,6 +82,10 @@ class TestRegistro:
             "senha": "123456",
             "confirmacao": "123456",
             "escola_id": "1",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         })
         # segundo com mesmo email
         resp = client.post("/registrar", data={
@@ -77,6 +94,10 @@ class TestRegistro:
             "senha": "123456",
             "confirmacao": "123456",
             "escola_id": "1",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"j\xc3\xa1 cadastrado" in resp.data
 
@@ -86,6 +107,10 @@ class TestRegistro:
             "email": "sem@teste.com",
             "senha": "123456",
             "confirmacao": "123456",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"Escola" in resp.data
 
@@ -102,11 +127,14 @@ class TestAutorizacao:
             create_user({
                 "nome": "Comum",
                 "email": "comum@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        client.post("/login", data={"email": "comum@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "comum@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/novo")
         assert resp.status_code == 403
 
@@ -117,11 +145,14 @@ class TestAutorizacao:
             create_user({
                 "nome": "Admin Jogos",
                 "email": "adminj@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_jogos",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        client.post("/login", data={"email": "adminj@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "adminj@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/novo")
         assert resp.status_code == 200
 
@@ -136,11 +167,14 @@ class TestAutorizacao:
             create_user({
                 "nome": "Comum",
                 "email": "comum2@teste.com",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        client.post("/login", data={"email": "comum2@teste.com", "senha": "123"})
+        client.post("/login", data={"email": "comum2@teste.com", "senha": TEST_PASSWORD})
         resp = client.get("/admin/users")
         assert resp.status_code == 403
 
@@ -165,6 +199,10 @@ class TestAdminUserCreate:
             "confirmacao": "1234",
             "role": "usuario",
             "ativo": "1",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert resp.status_code == 200
         assert b"criado" in resp.data
@@ -176,6 +214,10 @@ class TestAdminUserCreate:
             "senha": "1234",
             "confirmacao": "1234",
             "role": "usuario",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         })
         resp = admin_client.post("/admin/users/criar", data={
             "nome": "Segundo",
@@ -183,6 +225,10 @@ class TestAdminUserCreate:
             "senha": "1234",
             "confirmacao": "1234",
             "role": "usuario",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"j\xc3\xa1 cadastrado" in resp.data
 
@@ -193,6 +239,10 @@ class TestAdminUserCreate:
             "senha": "12",
             "confirmacao": "12",
             "role": "usuario",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"4 caracteres" in resp.data
 
@@ -203,6 +253,10 @@ class TestAdminUserCreate:
             "senha": "1234",
             "confirmacao": "5678",
             "role": "usuario",
+            "telefone_ddd": "11",
+            "telefone_numero": "999998888",
+            "whatsapp": "1",
+            "consentimento": "1",
         }, follow_redirects=True)
         assert b"n\xc3\xa3o conferem" in resp.data
 
@@ -213,11 +267,14 @@ class TestAdminUserCreate:
             create_user({
                 "nome": "Comum",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        client.post("/login", data={"email": "[EMAIL]", "senha": "123"})
+        client.post("/login", data={"email": "[EMAIL]", "senha": TEST_PASSWORD})
         resp = client.get("/admin/users/criar")
         assert resp.status_code == 403
 
@@ -233,9 +290,12 @@ class TestAdminUserRoleChange:
             user_id = create_user({
                 "nome": "Usuario",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "usuario",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
         resp = admin_client.post(f"/admin/users/{user_id}/role", data={
             "role": "admin_jogos",
@@ -254,11 +314,14 @@ class TestAdminUserRoleChange:
             user_id = create_user({
                 "nome": "Unico Admin",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
-        client.post("/login", data={"email": "[EMAIL]", "senha": "admin123"},
+        client.post("/login", data={"email": "[EMAIL]", "senha": TEST_PASSWORD},
                     follow_redirects=True)
         resp = client.post(f"/admin/users/{user_id}/role", data={
             "role": "admin_jogos",
@@ -277,9 +340,12 @@ class TestAdminUserRoleChange:
             create_user({
                 "nome": "Segundo Admin",
                 "email": "[EMAIL]",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
             first_id = get_user_by_email("[EMAIL]")["id"]
         resp = admin_client.post(f"/admin/users/{first_id}/role", data={
@@ -300,9 +366,12 @@ def _seed_admin(app):
             create_user({
                 "nome": "Admin Teste",
                 "email": "admin@teste.com",
-                "password_hash": generate_password_hash("admin123"),
+                "password_hash": generate_password_hash(TEST_PASSWORD),
                 "role": "admin_sistema",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
 
 

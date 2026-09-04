@@ -77,6 +77,9 @@ class TestAdminSchools:
                 "password_hash": generate_password_hash("123456"),
                 "role": "usuario",
                 "ativo": 1,
+                "telefone": "11999998888",
+                "whatsapp": 0,
+                "consentimento": 0,
             })
         client.post("/login", data={"email": "comum@teste.com", "senha": "123456"})
         resp = client.get("/admin/schools")

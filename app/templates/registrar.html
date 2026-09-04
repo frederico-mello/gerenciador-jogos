@@ -30,6 +30,25 @@
       {% endfor %}
     </select>
   </div>
+  <div class="form-group">
+    <label for="telefone_ddd">Telefone *</label>
+    <div style="display:flex; gap:0.5rem;">
+      <input id="telefone_ddd" type="text" name="telefone_ddd" placeholder="DDD" maxlength="2" pattern="\d{2}" value="{{ form.get('telefone_ddd', '') }}" required style="width:5ch;" />
+      <input id="telefone_numero" type="text" name="telefone_numero" placeholder="Número" maxlength="9" pattern="\d{8,9}" value="{{ form.get('telefone_numero', '') }}" aria-label="Número do telefone" title="Número do telefone" required style="flex:1;" />
+    </div>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="whatsapp" value="1" {% if form.get('whatsapp') == '1' %}checked{% endif %} />
+      Este número é WhatsApp
+    </label>
+  </div>
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="consentimento" value="1" {% if form.get('consentimento') == '1' %}checked{% endif %} required />
+      Autorizo o tratamento dos meus dados pessoais conforme a LGPD. *
+    </label>
+  </div>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Criar conta</button>
     <a class="btn" href="{{ url_for('games.login') }}">Já tenho conta</a>

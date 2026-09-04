@@ -121,8 +121,38 @@
       {% if game %}
         <a class="btn btn-ghost" href="{{ url_for('games.detalhe', game_id=game.id) }}">Cancelar</a>
       {% else %}
-        <a class="btn btn-ghost" href="{{ url_for('games.index') }}">Cancelar</a>
+        <a class="btn btn-ghost" href="{{ url_for('games.index') }}">Voltar</a>
       {% endif %}
     </div>
   </form>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde.min.css') }}" />
+<script src="{{ url_for('static', filename='vendor/easymde.min.js') }}"></script>
+<script>
+  new EasyMDE({
+    element: document.getElementById('descricao'),
+    spellChecker: false,
+    status: false,
+    minHeight: '200px',
+    toolbar: [
+      'bold',
+      'italic',
+      'heading',
+      '|',
+      'unordered-list',
+      'ordered-list',
+      '|',
+      'quote',
+      'link',
+      'image',
+      '|',
+      'preview',
+      'side-by-side',
+      'fullscreen',
+      'guide'
+    ]
+  });
+</script>
 {% endblock %}

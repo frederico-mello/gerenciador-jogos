@@ -3,13 +3,16 @@ set -euo pipefail
 
 APP_DIR="/opt/gerenciador-jogos"
 REPO_URL="${REPO_URL:-}"
+NGINX_SITES="$NGINX_SITES"
+NGINX_ENABLED="$NGINX_ENABLED"
+SEPARATOR="$SEPARATOR"
 
-echo "============================================"
+echo "$SEPARATOR"
 echo "  Gerenciador de Jogos — Deploy Automatizado"
-echo "============================================"
+echo "$SEPARATOR"
 echo ""
 
-if [ "$EUID" -ne 0 ]; then
+if [[ "$EUID" -ne 0 ]]; then
     echo "Execute como root: sudo bash deploy/setup.sh"
     exit 1
 fi
@@ -31,7 +34,7 @@ apt install -y -qq python3 python3-pip python3-venv nginx certbot python3-certbo
 
 echo ""
 read -rp "Qual é o domínio do servidor? (ex: jogos.exemplo.com) " DOMAIN
-if [ -z "$DOMAIN" ]; then
+if [[ -z "$DOMAIN" ]]; then
     echo "Domínio é obrigatório. Abortando."
     exit 1
 fi
@@ -41,9 +44,9 @@ mkdir -p "$APP_DIR"
 mkdir -p "$APP_DIR/instance"
 mkdir -p "$APP_DIR/data"
 
-if [ -n "$REPO_URL" ]; then
+if [[ -n "$REPO_URL" ]]; then
     echo ">>> Clonando repositório..."
-    if [ -d "$APP_DIR/.git" ]; then
+    if [[ -d "$APP_DIR/.git" ]]; then
         git -C "$APP_DIR" pull
     else
         git clone "$REPO_URL" "$APP_DIR"
@@ -61,7 +64,7 @@ source "$APP_DIR/venv/bin/activate"
 pip install -U pip -q
 pip install -r "$APP_DIR/requirements.txt" -q
 
-if [ ! -f "$APP_DIR/.env" ]; then
+if [[ ! -f "$APP_DIR/.env" ]]; then
     echo ">>> Criando .env..."
     SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     cat > "$APP_DIR/.env" <<EOF
@@ -83,11 +86,11 @@ chown www-data:www-data "$APP_DIR/.env"
 chmod 640 "$APP_DIR/.env"
 
 echo ">>> Configurando Nginx (fase 1/3 — HTTP-only para bootstrapping)..."
-if [ -f "/etc/nginx/sites-enabled/default" ]; then
+if [[ -f "/etc/nginx/sites-enabled/default" ]]; then
     rm /etc/nginx/sites-enabled/default
 fi
 
-cat > "/etc/nginx/sites-available/gerenciador-jogos" <<NGINX_HTTP
+cat > "$NGINX_SITES" <<NGINX_HTTP
 server {
     listen 80;
     server_name $DOMAIN;
@@ -97,8 +100,8 @@ server {
 }
 NGINX_HTTP
 
-if [ ! -L "/etc/nginx/sites-enabled/gerenciador-jogos" ]; then
-    ln -s "/etc/nginx/sites-available/gerenciador-jogos" "/etc/nginx/sites-enabled/"
+if [[ ! -L "$NGINX_ENABLED" ]]; then
+    ln -s "$NGINX_SITES" "/etc/nginx/sites-enabled/"
 fi
 
 nginx -t && systemctl reload nginx
@@ -113,7 +116,7 @@ ufw allow 443/tcp comment 'HTTPS'
 ufw --force enable
 
 echo ">>> Gerando certificado SSL com Let's Encrypt (fase 2/3)..."
-if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+if [[ ! -d "/etc/letsencrypt/live/$DOMAIN" ]]; then
     certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos --email admin@"$DOMAIN" || {
         echo ""
         echo "    AVISO: Let's Encrypt falhou. Será usado certificado self-signed."
@@ -133,7 +136,7 @@ systemctl enable gerenciador-jogos
 systemctl restart gerenciador-jogos
 
 echo ">>> Instalando configuração SSL (fase 3/3)..."
-if [ -z "${CERT_FAILED:-}" ]; then
+if [[ -z "${CERT_FAILED:-}" ]]; then
     SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
     SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
 else
@@ -149,10 +152,10 @@ else
     SSL_KEY="/etc/nginx/ssl/self-signed.key"
 fi
 
-cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/gerenciador-jogos"
-sed -i "s/server_name _;/server_name $DOMAIN;/g" "/etc/nginx/sites-available/gerenciador-jogos"
-sed -i "s|__SSL_CERT__|$SSL_CERT|g" "/etc/nginx/sites-available/gerenciador-jogos"
-sed -i "s|__SSL_KEY__|$SSL_KEY|g" "/etc/nginx/sites-available/gerenciador-jogos"
+cp "$APP_DIR/deploy/nginx.conf" "$NGINX_SITES"
+sed -i "s/server_name _;/server_name $DOMAIN;/g" "$NGINX_SITES"
+sed -i "s|__SSL_CERT__|$SSL_CERT|g" "$NGINX_SITES"
+sed -i "s|__SSL_KEY__|$SSL_KEY|g" "$NGINX_SITES"
 nginx -t && systemctl reload nginx
 
 echo ">>> Configurando renovação automática do certificado..."
@@ -164,9 +167,9 @@ else
 fi
 
 echo ""
-echo "============================================"
+echo "$SEPARATOR"
 echo "  Deploy concluído!"
-echo "============================================"
+echo "$SEPARATOR"
 echo ""
 echo "  Acesse: https://$DOMAIN"
 echo ""

@@ -6,6 +6,9 @@ from flask import session, redirect, url_for, flash, abort
 
 from . import models
 
+ENDPOINT_LOGIN = "games.login"
+MSG_LOGIN_NECESSARIO = "Login necessário."
+
 
 def current_user():
     """Retorna o usuário logado (Row) ou None."""
@@ -20,8 +23,8 @@ def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not current_user():
-            flash("Login necessário.", "error")
-            return redirect(url_for("games.login"))
+            flash(MSG_LOGIN_NECESSARIO, "error")
+            return redirect(url_for(ENDPOINT_LOGIN))
         return f(*args, **kwargs)
     return wrapper
 
@@ -33,8 +36,8 @@ def role_required(*roles):
         def wrapper(*args, **kwargs):
             user = current_user()
             if not user:
-                flash("Login necessário.", "error")
-                return redirect(url_for("games.login"))
+                flash(MSG_LOGIN_NECESSARIO, "error")
+                return redirect(url_for(ENDPOINT_LOGIN))
             if user["role"] not in roles:
                 abort(403)
             return f(*args, **kwargs)
@@ -48,11 +51,11 @@ def active_required(f):
     def wrapper(*args, **kwargs):
         user = current_user()
         if not user:
-            flash("Login necessário.", "error")
-            return redirect(url_for("games.login"))
+            flash(MSG_LOGIN_NECESSARIO, "error")
+            return redirect(url_for(ENDPOINT_LOGIN))
         if not user["ativo"]:
             flash("Conta inativa. Contate um administrador.", "error")
             session.clear()
-            return redirect(url_for("games.login"))
+            return redirect(url_for(ENDPOINT_LOGIN))
         return f(*args, **kwargs)
     return wrapper

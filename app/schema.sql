@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS users (
     escola_id     INTEGER,
     ativo         INTEGER DEFAULT 1,
     receber_emails INTEGER DEFAULT 0,
+    telefone      TEXT NOT NULL DEFAULT '',
+    whatsapp      INTEGER DEFAULT 0,
+    consentimento INTEGER DEFAULT 0,
     created_at    TEXT DEFAULT (datetime('now', 'localtime')),
     updated_at    TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (escola_id) REFERENCES schools(id)
@@ -76,7 +79,7 @@ CREATE TABLE IF NOT EXISTS loans (
     devolvido_at          TEXT,
     created_at            TEXT DEFAULT (datetime('now','localtime')),
     updated_at            TEXT DEFAULT (datetime('now','localtime')),
-    FOREIGN KEY (game_id) REFERENCES games(id),
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
@@ -100,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_history_loan ON loan_status_history(loan_id);
 
 CREATE TABLE IF NOT EXISTS reservation_queue (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id    INTEGER NOT NULL REFERENCES games(id),
+    game_id    INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     user_id    INTEGER NOT NULL REFERENCES users(id),
     posicao    INTEGER NOT NULL,
     status     TEXT NOT NULL DEFAULT 'na_fila' CHECK(status IN ('na_fila','notificado','atendido','cancelado')),

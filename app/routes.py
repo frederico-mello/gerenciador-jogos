@@ -4,6 +4,7 @@ import hashlib
 import shutil
 from pathlib import Path
 
+import bleach
 import markdown
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
@@ -12,6 +13,7 @@ from flask import (
 from werkzeug.security import check_password_hash
 
 from . import models
+from .models import GameHasActiveLoansError
 from .auth import login_required, role_required, current_user
 from .importer import slugify, resize_image
 from .db import init_db, get_db
@@ -44,9 +46,195 @@ def load_loan_terms():
     return _terms_cache
 
 
+ALLOWED_TAGS = [
+    "p", "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "ol", "li", "a", "img", "table", "thead", "tbody",
+    "tr", "td", "th", "strong", "em", "code", "pre",
+    "br", "hr", "blockquote", "span", "div",
+]
+ALLOWED_ATTRIBUTES = {
+    "a": ["href", "title"],
+    "img": ["src", "alt", "title"],
+    "th": ["align"],
+    "td": ["align"],
+}
+
+MSG_NOME_OBRIGATORIO = "Nome é obrigatório."
+MSG_EMAIL_OBRIGATORIO = "Email é obrigatório."
+MSG_EMAIL_JA_CADASTRADO = "Email já cadastrado."
+MSG_SENHA_MINIMA = "Senha deve ter pelo menos 4 caracteres."
+MSG_TELEFONE_OBRIGATORIO = "Telefone é obrigatório."
+MSG_DDD_INVALIDO = "DDD inválido."
+MSG_NUMERO_TELEFONE_INVALIDO = "Número de telefone inválido."
+MSG_CONSENTIMENTO_OBRIGATORIO = "É necessário consentir com os termos."
+
+ENDPOINT_INDEX = "games.index"
+ENDPOINT_ADMIN_USERS = "games.admin_users"
+ENDPOINT_EMPRESTIMOS_ADMIN = "games.emprestimos_admin"
+ENDPOINT_EMPRESTIMOS = "games.emprestimos"
+ENDPOINT_ADMIN_SCHOOLS = "games.admin_schools"
+ENDPOINT_LOGIN = "games.login"
+ENDPOINT_PERFIL = "games.perfil"
+
+TEMPLATE_LOGIN = "login.html"
+TEMPLATE_FORM = "form.html"
+TEMPLATE_ADMIN_SCHOOL_FORM = "admin_school_form.html"
+TEMPLATE_ADMIN_USER_FORM = "admin_user_form.html"
+TEMPLATE_ADMIN_USER_CREATE = "admin_user_create.html"
+TEMPLATE_REGISTRAR = "registrar.html"
+TEMPLATE_PERFIL = "perfil.html"
+
+DDD_RANGE = range(11, 100)
+
+
+def _validate_telefone(ddd, numero):
+    """Valida DDD (2 digitos, 11-99) e numero (8-9 digitos).
+    Retorna string concatenada 'DDDnumero' ou levanta ValueError."""
+    ddd = (ddd or "").strip()
+    numero = (numero or "").strip()
+    if not ddd or not numero:
+        raise ValueError(MSG_TELEFONE_OBRIGATORIO)
+    if len(ddd) != 2 or not ddd.isdigit() or int(ddd) not in DDD_RANGE:
+        raise ValueError(MSG_DDD_INVALIDO)
+    if len(numero) < 8 or len(numero) > 9 or not numero.isdigit():
+        raise ValueError(MSG_NUMERO_TELEFONE_INVALIDO)
+    return ddd + numero
+
+
+def _parse_user_contact_fields(form, require_telefone=False, require_consentimento=False):
+    """Extrai telefone/whatsapp/consentimento do form.
+
+    Retorna (telefone, whatsapp, consentimento, errors):
+    - telefone: str validada, ou None se ambos os campos vazios e não obrigatório.
+    - whatsapp/consentimento: 0 ou 1.
+    - errors: lista de mensagens de erro de validação.
+    """
+    errors = []
+    telefone_ddd = (form.get("telefone_ddd") or "").strip()
+    telefone_numero = (form.get("telefone_numero") or "").strip()
+    telefone = None
+    if telefone_ddd or telefone_numero or require_telefone:
+        try:
+            telefone = _validate_telefone(telefone_ddd, telefone_numero)
+        except ValueError as e:
+            errors.append(str(e))
+            telefone = ""
+    whatsapp = 1 if form.get("whatsapp") == "1" else 0
+    consentimento = 1 if form.get("consentimento") == "1" else 0
+    if require_consentimento and consentimento != 1:
+        errors.append(MSG_CONSENTIMENTO_OBRIGATORIO)
+    return telefone, whatsapp, consentimento, errors
+
+
+def _split_telefone(telefone):
+    """Quebra uma string 'DDDnumero' em (ddd, numero) para popular o form."""
+    t = telefone or ""
+    return t[:2] if len(t) >= 2 else "", t[2:] if len(t) > 2 else ""
+
+
+def _build_admin_user_update_data(form, nome, telefone, whatsapp, consentimento):
+    """Monta o dict de campos a atualizar em /admin/users/<id>/editar."""
+    data = {"nome": nome, "whatsapp": whatsapp, "consentimento": consentimento}
+    email = form.get("email") or None
+    if email:
+        data["email"] = email
+    escola_id = form.get("escola_id") or None
+    data["escola_id"] = int(escola_id) if escola_id else None
+    senha = form.get("senha") or ""
+    if senha:
+        data["senha"] = senha
+    ativo = form.get("ativo")
+    if ativo is not None:
+        data["ativo"] = 1 if ativo == "1" else 0
+    if telefone is not None:
+        data["telefone"] = telefone
+    return data
+
+
+def _build_perfil_update_data(nome, email, receber_emails, senha, telefone, whatsapp, consentimento):
+    """Monta o dict de campos a atualizar em /perfil."""
+    data = {"nome": nome, "email": email, "receber_emails": receber_emails,
+            "whatsapp": whatsapp, "consentimento": consentimento}
+    if telefone is not None:
+        data["telefone"] = telefone
+    if senha:
+        data["senha"] = senha
+    return data
+
+
+def _validate_registrant(form):
+    """Valida campos do formulário público de registro."""
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    email = (form.get("email") or "").strip()
+    senha = form.get("senha") or ""
+    confirmacao = form.get("confirmacao") or ""
+    escola_id = form.get("escola_id") or None
+
+    if not nome:
+        errors.append(MSG_NOME_OBRIGATORIO)
+    if not email:
+        errors.append(MSG_EMAIL_OBRIGATORIO)
+    elif models.get_user_by_email(email):
+        errors.append(MSG_EMAIL_JA_CADASTRADO)
+    if not senha:
+        errors.append("Senha é obrigatória.")
+    elif len(senha) < 4:
+        errors.append(MSG_SENHA_MINIMA)
+    elif senha != confirmacao:
+        errors.append("Senhas não conferem.")
+    if not escola_id:
+        errors.append("Escola é obrigatória.")
+    return errors
+
+
+def _validate_perfil_update(form, current_email):
+    """Valida campos do formulário de perfil (nome, email único, senha opcional)."""
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    email = (form.get("email") or "").strip()
+    senha = form.get("senha") or ""
+
+    if not nome:
+        errors.append(MSG_NOME_OBRIGATORIO)
+    if not email:
+        errors.append(MSG_EMAIL_OBRIGATORIO)
+    elif email != current_email and models.get_user_by_email(email):
+        errors.append(MSG_EMAIL_JA_CADASTRADO)
+    if senha and len(senha) < 4:
+        errors.append(MSG_SENHA_MINIMA)
+    return errors
+
+
+def _build_admin_user_create_payload(form, senha, telefone, whatsapp, consentimento):
+    """Monta o payload para models.create_user a partir do form admin."""
+    from werkzeug.security import generate_password_hash
+    escola_id = form.get("escola_id")
+    return {
+        "nome": (form.get("nome") or "").strip(),
+        "email": (form.get("email") or "").strip(),
+        "password_hash": generate_password_hash(senha),
+        "role": form.get("role") or "usuario",
+        "escola_id": int(escola_id) if escola_id else None,
+        "ativo": 1 if form.get("ativo") == "1" else 0,
+        "telefone": telefone,
+        "whatsapp": whatsapp,
+        "consentimento": consentimento,
+    }
+
+
 @bp.app_context_processor
 def inject_current_user():
     return dict(current_user=current_user())
+
+
+def _validate_login(email, senha):
+    user = models.get_user_by_email(email)
+    if not user or not check_password_hash(user["password_hash"], senha):
+        return None, "Credenciais inválidas."
+    if not user["ativo"]:
+        return None, "Conta inativa. Contate um administrador."
+    return user, None
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -54,68 +242,52 @@ def login():
     if request.method == "POST":
         email = (request.form.get("email") or "").strip()
         senha = request.form.get("senha") or ""
-        user = models.get_user_by_email(email)
-        if not user or not check_password_hash(user["password_hash"], senha):
-            flash("Credenciais inválidas.", "error")
-            return render_template("login.html"), 401
-        if not user["ativo"]:
-            flash("Conta inativa. Contate um administrador.", "error")
-            return render_template("login.html"), 401
+        user, error = _validate_login(email, senha)
+        if error:
+            flash(error, "error")
+            return render_template(TEMPLATE_LOGIN), 401
         session["user_id"] = user["id"]
-        return redirect(url_for("games.index"))
-    return render_template("login.html")
+        return redirect(url_for(ENDPOINT_INDEX))
+    return render_template(TEMPLATE_LOGIN)
 
 
 @bp.route("/registrar", methods=["GET", "POST"])
 def registrar():
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        email = (request.form.get("email") or "").strip()
-        senha = request.form.get("senha") or ""
-        confirmacao = request.form.get("confirmacao") or ""
-        escola_id = request.form.get("escola_id") or None
-
-        errors = []
-        if not nome:
-            errors.append("Nome é obrigatório.")
-        if not email:
-            errors.append("Email é obrigatório.")
-        elif models.get_user_by_email(email):
-            errors.append("Email já cadastrado.")
-        if not senha:
-            errors.append("Senha é obrigatória.")
-        elif len(senha) < 4:
-            errors.append("Senha deve ter pelo menos 4 caracteres.")
-        elif senha != confirmacao:
-            errors.append("Senhas não conferem.")
-        if not escola_id:
-            errors.append("Escola é obrigatória.")
-
+        errors = _validate_registrant(request.form)
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form, require_telefone=True,
+                                       require_consentimento=True)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("registrar.html", schools=models.list_schools(),
+            return render_template(TEMPLATE_REGISTRAR, schools=models.list_schools(),
                                    form=request.form), 400
 
         from werkzeug.security import generate_password_hash
         models.create_user({
-            "nome": nome,
-            "email": email,
-            "password_hash": generate_password_hash(senha),
+            "nome": (request.form.get("nome") or "").strip(),
+            "email": (request.form.get("email") or "").strip(),
+            "password_hash": generate_password_hash(request.form.get("senha") or ""),
             "role": "usuario",
-            "escola_id": int(escola_id),
+            "escola_id": int(request.form.get("escola_id")),
             "ativo": 1,
+            "telefone": telefone,
+            "whatsapp": whatsapp,
+            "consentimento": consentimento,
         })
         flash("Conta criada! Faça login.", "success")
-        return redirect(url_for("games.login"))
-    return render_template("registrar.html", schools=models.list_schools(), form={})
+        return redirect(url_for(ENDPOINT_LOGIN))
+    return render_template(TEMPLATE_REGISTRAR, schools=models.list_schools(), form={})
 
 
-@bp.route("/logout")
+@bp.route("/logout", methods=["GET"])
 def logout():
     session.clear()
     flash("Sessão encerrada.", "success")
-    return redirect(url_for("games.index"))
+    return redirect(url_for(ENDPOINT_INDEX))
 
 
 def _save_uploaded(file_storage, area, slug, field_name):
@@ -166,7 +338,53 @@ def _remove_game_files(area, slug):
         shutil.rmtree(target)
 
 
-@bp.route("/")
+def _validate_game_form(form):
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    area = (form.get("area") or "").strip()
+    if not nome:
+        errors.append("Nome é obrigatório.")
+    if area not in ALLOWED_AREAS:
+        errors.append("Área inválida.")
+    return errors
+
+
+def _validate_user_form(form, check_email_uniqueness=True):
+    errors = []
+    nome = (form.get("nome") or "").strip()
+    email = (form.get("email") or "").strip()
+    senha = form.get("senha") or ""
+    role = form.get("role") or "usuario"
+
+    if not nome:
+        errors.append("Nome é obrigatório.")
+    if not email:
+        errors.append("Email é obrigatório.")
+    elif check_email_uniqueness and models.get_user_by_email(email):
+        errors.append("Email já cadastrado.")
+    if not senha:
+        errors.append("Senha é obrigatória.")
+    elif len(senha) < 4:
+        errors.append("Senha deve ter pelo menos 4 caracteres.")
+    if role not in ("admin_sistema", "admin_jogos", "usuario"):
+        errors.append("Papel inválido.")
+    return errors
+
+
+def _collect_game_form_data(form):
+    nome = (form.get("nome") or "").strip()
+    area = (form.get("area") or "").strip()
+    return {
+        "nome": nome,
+        "area": area,
+        "descricao": form.get("descricao") or None,
+        "regras_resumo": form.get("regras_resumo") or None,
+        "num_jogadores": form.get("num_jogadores") or None,
+        "duracao_min": form.get("duracao_min") or None,
+    }
+
+
+@bp.route("/", methods=["GET"])
 def index():
     area = request.args.get("area") or None
     q = request.args.get("q") or None
@@ -182,28 +400,16 @@ def index():
 @role_required("admin_sistema", "admin_jogos")
 def novo():
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        area = (request.form.get("area") or "").strip()
-        errors = []
-        if not nome:
-            errors.append("Nome é obrigatório.")
-        if area not in ALLOWED_AREAS:
-            errors.append("Área inválida.")
+        errors = _validate_game_form(request.form)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("form.html", game=None, areas=ALLOWED_AREAS,
+            return render_template(TEMPLATE_FORM, game=None, areas=ALLOWED_AREAS,
                                    form=request.form), 400
 
-        slug = slugify(nome)
-        data = {
-            "nome": nome,
-            "area": area,
-            "descricao": request.form.get("descricao") or None,
-            "regras_resumo": request.form.get("regras_resumo") or None,
-            "num_jogadores": request.form.get("num_jogadores") or None,
-            "duracao_min": request.form.get("duracao_min") or None,
-        }
+        data = _collect_game_form_data(request.form)
+        slug = slugify(data["nome"])
+        area = data["area"]
 
         comp_path = _save_uploaded(request.files.get("imagem_componentes"), area, slug, "componentes")
         if comp_path:
@@ -218,13 +424,13 @@ def novo():
         game_id = models.create_game(data)
         if manual_paths:
             models.set_manual_pages(game_id, manual_paths)
-        flash(f"Jogo '{nome}' criado.", "success")
+        flash(f"Jogo '{data['nome']}' criado.", "success")
         return redirect(url_for("games.detalhe", game_id=game_id))
 
-    return render_template("form.html", game=None, areas=ALLOWED_AREAS, form={})
+    return render_template(TEMPLATE_FORM, game=None, areas=ALLOWED_AREAS, form={})
 
 
-@bp.route("/<int:game_id>")
+@bp.route("/<int:game_id>", methods=["GET"])
 def detalhe(game_id):
     game = models.get_game(game_id)
     if not game:
@@ -233,6 +439,7 @@ def detalhe(game_id):
     descricao_html = ""
     if game["descricao"]:
         descricao_html = markdown.markdown(game["descricao"], extensions=["extra"])
+        descricao_html = bleach.clean(descricao_html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
     status, loan_id = models.get_game_availability(game_id)
     loan_history = []
     user = current_user()
@@ -256,29 +463,17 @@ def editar(game_id):
         abort(404)
 
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        area = (request.form.get("area") or "").strip()
-        errors = []
-        if not nome:
-            errors.append("Nome é obrigatório.")
-        if area not in ALLOWED_AREAS:
-            errors.append("Área inválida.")
+        errors = _validate_game_form(request.form)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("form.html", game=game, areas=ALLOWED_AREAS,
+            return render_template(TEMPLATE_FORM, game=game, areas=ALLOWED_AREAS,
                                    form=request.form,
                                    pages=models.list_manual_pages(game_id)), 400
 
-        slug = slugify(nome)
-        data = {
-            "nome": nome,
-            "area": area,
-            "descricao": request.form.get("descricao") or None,
-            "regras_resumo": request.form.get("regras_resumo") or None,
-            "num_jogadores": request.form.get("num_jogadores") or None,
-            "duracao_min": request.form.get("duracao_min") or None,
-        }
+        data = _collect_game_form_data(request.form)
+        slug = slugify(data["nome"])
+        area = data["area"]
 
         comp_path = _save_uploaded(request.files.get("imagem_componentes"), area, slug, "componentes")
         if comp_path:
@@ -293,11 +488,11 @@ def editar(game_id):
         models.update_game(game_id, data)
         if manual_paths is not None:
             models.set_manual_pages(game_id, manual_paths)
-        flash(f"Jogo '{nome}' atualizado.", "success")
+        flash(f"Jogo '{data['nome']}' atualizado.", "success")
         return redirect(url_for("games.detalhe", game_id=game_id))
 
     pages = models.list_manual_pages(game_id)
-    return render_template("form.html", game=game, areas=ALLOWED_AREAS,
+    return render_template(TEMPLATE_FORM, game=game, areas=ALLOWED_AREAS,
                            form={}, pages=pages)
 
 
@@ -310,13 +505,21 @@ def excluir(game_id):
     nome = game["nome"]
     area = game["area"]
     slug = slugify(nome)
-    models.delete_game(game_id)
+    try:
+        models.delete_game(game_id)
+    except GameHasActiveLoansError as exc:
+        flash(
+            ("Jogo %s nao pode ser excluido: %s. "
+             "Devolva ou cancele os emprestimos ativos antes.") % (nome, exc),
+            "error",
+        )
+        return redirect(url_for("games.detalhe", game_id=game_id))
     _remove_game_files(area, slug)
-    flash(f"Jogo '{nome}' excluído.", "success")
-    return redirect(url_for("games.index"))
+    flash("Jogo %s excluido." % nome, "success")
+    return redirect(url_for(ENDPOINT_INDEX))
 
 
-@bp.route("/admin/schools")
+@bp.route("/admin/schools", methods=["GET"])
 @role_required("admin_sistema")
 def admin_schools():
     rede = request.args.get("rede") or None
@@ -332,11 +535,11 @@ def admin_schools_criar():
         nome = (request.form.get("nome") or "").strip()
         errors = []
         if not nome:
-            errors.append("Nome é obrigatório.")
+            errors.append(MSG_NOME_OBRIGATORIO)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_school_form.html", school=None, form=request.form), 400
+            return render_template(TEMPLATE_ADMIN_SCHOOL_FORM, school=None, form=request.form), 400
 
         data = {
             "nome": nome,
@@ -348,9 +551,9 @@ def admin_schools_criar():
         }
         models.create_school(data)
         flash(f"Escola '{nome}' criada.", "success")
-        return redirect(url_for("games.admin_schools"))
+        return redirect(url_for(ENDPOINT_ADMIN_SCHOOLS))
 
-    return render_template("admin_school_form.html", school=None, form={})
+    return render_template(TEMPLATE_ADMIN_SCHOOL_FORM, school=None, form={})
 
 
 @bp.route("/admin/schools/<int:school_id>/editar", methods=["GET", "POST"])
@@ -364,11 +567,11 @@ def admin_schools_editar(school_id):
         nome = (request.form.get("nome") or "").strip()
         errors = []
         if not nome:
-            errors.append("Nome é obrigatório.")
+            errors.append(MSG_NOME_OBRIGATORIO)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_school_form.html", school=school, form=request.form), 400
+            return render_template(TEMPLATE_ADMIN_SCHOOL_FORM, school=school, form=request.form), 400
 
         data = {
             "nome": nome,
@@ -380,9 +583,9 @@ def admin_schools_editar(school_id):
         }
         models.update_school(school_id, data)
         flash(f"Escola '{nome}' atualizada.", "success")
-        return redirect(url_for("games.admin_schools"))
+        return redirect(url_for(ENDPOINT_ADMIN_SCHOOLS))
 
-    return render_template("admin_school_form.html", school=school, form={})
+    return render_template(TEMPLATE_ADMIN_SCHOOL_FORM, school=school, form={})
 
 
 @bp.route("/admin/schools/<int:school_id>/inativar", methods=["POST"])
@@ -393,7 +596,7 @@ def admin_schools_inativar(school_id):
         abort(404)
     models.set_school_ativo(school_id, 0)
     flash(f"Escola '{school['nome']}' inativada.", "success")
-    return redirect(url_for("games.admin_schools"))
+    return redirect(url_for(ENDPOINT_ADMIN_SCHOOLS))
 
 
 @bp.route("/admin/schools/<int:school_id>/reativar", methods=["POST"])
@@ -404,10 +607,10 @@ def admin_schools_reativar(school_id):
         abort(404)
     models.set_school_ativo(school_id, 1)
     flash(f"Escola '{school['nome']}' reativada.", "success")
-    return redirect(url_for("games.admin_schools"))
+    return redirect(url_for(ENDPOINT_ADMIN_SCHOOLS))
 
 
-@bp.route("/admin/users")
+@bp.route("/admin/users", methods=["GET"])
 @role_required("admin_sistema")
 def admin_users():
     role = request.args.get("role") or None
@@ -417,7 +620,7 @@ def admin_users():
 
 
 @bp.route("/admin/users/<int:user_id>/editar", methods=["GET", "POST"])
-@role_required("admin_sistema")
+@role_required("admin_sistema", "admin_jogos")
 def admin_users_editar(user_id):
     user = models.get_user(user_id)
     if not user:
@@ -425,36 +628,32 @@ def admin_users_editar(user_id):
 
     if request.method == "POST":
         nome = (request.form.get("nome") or "").strip()
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form)
+        )
         errors = []
         if not nome:
-            errors.append("Nome é obrigatório.")
+            errors.append(MSG_NOME_OBRIGATORIO)
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False),
+            return render_template(TEMPLATE_ADMIN_USER_FORM, user=user,
+                                   escolas=models.list_schools(ativo_only=False),
                                    form=request.form), 400
 
-        data = {"nome": nome}
-        email = request.form.get("email") or None
-        if email:
-            data["email"] = email
-        escola_id = request.form.get("escola_id") or None
-        if escola_id:
-            data["escola_id"] = int(escola_id)
-        else:
-            data["escola_id"] = None
-        senha = request.form.get("senha") or ""
-        if senha:
-            data["senha"] = senha
-        ativo = request.form.get("ativo")
-        if ativo is not None:
-            data["ativo"] = 1 if ativo == "1" else 0
+        data = _build_admin_user_update_data(
+            request.form, nome, telefone, whatsapp, consentimento,
+        )
 
         models.update_user(user_id, data)
         flash(f"Usuário '{nome}' atualizado.", "success")
-        return redirect(url_for("games.admin_users"))
+        return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
-    return render_template("admin_user_form.html", user=user, escolas=models.list_schools(ativo_only=False), form={})
+    form = dict(user)
+    form["telefone_ddd"], form["telefone_numero"] = _split_telefone(form.get("telefone"))
+    return render_template(TEMPLATE_ADMIN_USER_FORM, user=user,
+                           escolas=models.list_schools(ativo_only=False), form=form)
 
 
 @bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
@@ -466,71 +665,50 @@ def admin_users_role(user_id):
     nova_role = request.form.get("role")
     if nova_role not in ("admin_sistema", "admin_jogos", "usuario"):
         flash("Papel inválido.", "error")
-        return redirect(url_for("games.admin_users"))
+        return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
     logged_user = current_user()
     if logged_user and user["id"] == logged_user["id"] and nova_role != "admin_sistema":
         flash("Você não pode remover seu próprio papel de administrador.", "error")
-        return redirect(url_for("games.admin_users"))
+        return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
     if (user["role"] == "admin_sistema" and nova_role != "admin_sistema"
             and models.count_admins_sistema() <= 1):
         flash("Não é possível remover o último administrador do sistema.", "error")
-        return redirect(url_for("games.admin_users"))
+        return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
     models.set_user_role(user_id, nova_role)
     flash(f"Papel de '{user['nome']}' alterado para {nova_role}.", "success")
-    return redirect(url_for("games.admin_users"))
+    return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
 
 @bp.route("/admin/users/criar", methods=["GET", "POST"])
-@role_required("admin_sistema")
+@role_required("admin_sistema", "admin_jogos")
 def admin_users_criar():
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        email = (request.form.get("email") or "").strip()
-        senha = request.form.get("senha") or ""
+        errors = _validate_user_form(request.form)
         confirmacao = request.form.get("confirmacao") or ""
-        role = request.form.get("role") or "usuario"
-        escola_id = request.form.get("escola_id") or None
-        ativo = 1 if request.form.get("ativo") == "1" else 0
-
-        errors = []
-        if not nome:
-            errors.append("Nome é obrigatório.")
-        if not email:
-            errors.append("Email é obrigatório.")
-        elif models.get_user_by_email(email):
-            errors.append("Email já cadastrado.")
-        if not senha:
-            errors.append("Senha é obrigatória.")
-        elif len(senha) < 4:
-            errors.append("Senha deve ter pelo menos 4 caracteres.")
-        elif senha != confirmacao:
+        senha = request.form.get("senha") or ""
+        if senha and senha != confirmacao:
             errors.append("Senhas não conferem.")
-        if role not in ("admin_sistema", "admin_jogos", "usuario"):
-            errors.append("Papel inválido.")
-
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form, require_telefone=True)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("admin_user_create.html",
+            return render_template(TEMPLATE_ADMIN_USER_CREATE,
                                    escolas=models.list_schools(ativo_only=False),
                                    form=request.form), 400
 
-        from werkzeug.security import generate_password_hash
-        models.create_user({
-            "nome": nome,
-            "email": email,
-            "password_hash": generate_password_hash(senha),
-            "role": role,
-            "escola_id": int(escola_id) if escola_id else None,
-            "ativo": ativo,
-        })
-        flash(f"Usuário '{nome}' criado com papel {role}.", "success")
-        return redirect(url_for("games.admin_users"))
+        models.create_user(_build_admin_user_create_payload(
+            request.form, senha, telefone, whatsapp, consentimento,
+        ))
+        flash(f"Usuário '{(request.form.get('nome') or '').strip()}' criado com papel {request.form.get('role') or 'usuario'}.", "success")
+        return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
-    return render_template("admin_user_create.html",
+    return render_template(TEMPLATE_ADMIN_USER_CREATE,
                            escolas=models.list_schools(ativo_only=False), form={})
 
 
@@ -542,7 +720,7 @@ def admin_users_inativar(user_id):
         abort(404)
     models.set_user_ativo(user_id, 0)
     flash(f"Usuário '{user['nome']}' inativado.", "success")
-    return redirect(url_for("games.admin_users"))
+    return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
 
 @bp.route("/admin/users/<int:user_id>/reativar", methods=["POST"])
@@ -553,12 +731,12 @@ def admin_users_reativar(user_id):
         abort(404)
     models.set_user_ativo(user_id, 1)
     flash(f"Usuário '{user['nome']}' reativado.", "success")
-    return redirect(url_for("games.admin_users"))
+    return redirect(url_for(ENDPOINT_ADMIN_USERS))
 
 
 # ─── Fila de reserva ──────────────────────────────────────────────────
 
-@bp.route("/emprestimos/fila/confirmar/<int:game_id>")
+@bp.route("/emprestimos/fila/confirmar/<int:game_id>", methods=["GET"])
 @login_required
 def confirmar_fila(game_id):
     game = models.get_game(game_id)
@@ -586,7 +764,7 @@ def entrar_fila(game_id):
 
     models.add_to_queue(game_id, user["id"])
     flash("Você entrou na fila de reserva.", "success")
-    return redirect(url_for("games.index"))
+    return redirect(url_for(ENDPOINT_INDEX))
 
 
 @bp.route("/emprestimos/fila/notificar/<int:game_id>", methods=["POST"])
@@ -600,7 +778,7 @@ def notificar_fila(game_id):
         # Try to send email if SMTP configured
         from .email import send_notification
         send_notification("queue_available", None, None, entry)
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/fila/cancelar/<int:entry_id>", methods=["POST"])
@@ -608,12 +786,12 @@ def notificar_fila(game_id):
 def cancelar_fila(entry_id):
     models.cancel_queue_entry(entry_id)
     flash("Reserva cancelada.", "success")
-    return redirect(url_for("games.emprestimos"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
 
 # ─── Empréstimos (usuário) ──────────────────────────────────────────────
 
-@bp.route("/emprestimos/admin/export.csv")
+@bp.route("/emprestimos/admin/export.csv", methods=["GET"])
 @role_required("admin_sistema", "admin_jogos")
 def export_emprestimos_csv():
     import csv, io
@@ -715,7 +893,7 @@ def solicitar_emprestimo(game_id):
 
     if models.user_has_active_loan(user["id"], game_id):
         flash("Você já possui uma solicitação ou empréstimo ativo para este jogo.", "error")
-        return redirect(url_for("games.emprestimos"))
+        return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
     status, _ = models.get_game_availability(game_id)
     if status != "disponivel":
@@ -745,10 +923,10 @@ def solicitar_emprestimo(game_id):
     models.create_loan(game_id, user["id"], devolucao_prevista,
                        termos_aceite_at=termos_aceite_at, termos_versao=termos_versao)
     flash("Solicitação enviada.", "success")
-    return redirect(url_for("games.emprestimos"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
 
-@bp.route("/emprestimos")
+@bp.route("/emprestimos", methods=["GET"])
 @login_required
 def emprestimos():
     user = current_user()
@@ -770,11 +948,11 @@ def cancelar_emprestimo(loan_id):
         abort(403)
     if loan["status"] != "solicitado":
         flash("Cancelamento deve ser feito por um administrador.", "error")
-        return redirect(url_for("games.emprestimos"))
+        return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
     models.update_loan_status(loan_id, "cancelado", user["id"], "Cancelado pelo usuário")
     flash("Solicitação cancelada.", "success")
-    return redirect(url_for("games.emprestimos"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
 
 @bp.route("/emprestimos/<int:loan_id>/renovar", methods=["POST"])
@@ -788,21 +966,21 @@ def renovar_emprestimo(loan_id):
         abort(403)
     if loan["status"] != "emprestado":
         flash("Só é possível renovar empréstimos com status emprestado.", "error")
-        return redirect(url_for("games.emprestimos"))
+        return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
     nova_data = request.form.get("nova_devolucao_prevista") or ""
     if not nova_data:
         flash("Informe a nova data de devolução.", "error")
-        return redirect(url_for("games.emprestimos"))
+        return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
     models.set_renovacao_pendente(loan_id, nova_data)
     flash("Pedido de renovação enviado.", "success")
-    return redirect(url_for("games.emprestimos"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS))
 
 
 # ─── Empréstimos (admin) ───────────────────────────────────────────────
 
-@bp.route("/emprestimos/admin")
+@bp.route("/emprestimos/admin", methods=["GET"])
 @role_required("admin_sistema", "admin_jogos")
 def emprestimos_admin():
     status = request.args.get("status") or None
@@ -835,7 +1013,7 @@ def aprovar_emprestimo(loan_id):
     if not loan:
         abort(404)
     if not _validate_loan_transition(loan, "reservado"):
-        return redirect(url_for("games.emprestimos_admin"))
+        return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
     if loan["status"] != "solicitado":
         abort(400)
     user = current_user()
@@ -843,7 +1021,7 @@ def aprovar_emprestimo(loan_id):
     from .email import send_notification
     send_notification("loan_approved", models.get_loan(loan_id))
     flash("Empréstimo reservado.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/<int:loan_id>/emprestar", methods=["POST"])
@@ -867,7 +1045,7 @@ def emprestar_jogo(loan_id):
     from .email import send_notification
     send_notification("loan_loaned", models.get_loan(loan_id))
     flash("Jogo emprestado.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/<int:loan_id>/devolver", methods=["POST"])
@@ -881,7 +1059,7 @@ def devolver_jogo(loan_id):
     user = current_user()
     models.update_loan_status(loan_id, "devolvido", user["id"])
     flash("Jogo devolvido.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/<int:loan_id>/cancelar/admin", methods=["POST"])
@@ -896,7 +1074,7 @@ def cancelar_emprestimo_admin(loan_id):
     observacao = request.form.get("observacao") or "Cancelado por administrador"
     models.update_loan_status(loan_id, "cancelado", user["id"], observacao)
     flash("Empréstimo cancelado.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/<int:loan_id>/renovar/aprovar", methods=["POST"])
@@ -910,7 +1088,7 @@ def aprovar_renovacao(loan_id):
     from .email import send_notification
     send_notification("renewal_approved", models.get_loan(loan_id))
     flash("Renovação aprovada.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 @bp.route("/emprestimos/<int:loan_id>/renovar/rejeitar", methods=["POST"])
@@ -924,12 +1102,12 @@ def rejeitar_renovacao(loan_id):
     from .email import send_notification
     send_notification("renewal_rejected", models.get_loan(loan_id))
     flash("Renovação rejeitada.", "success")
-    return redirect(url_for("games.emprestimos_admin"))
+    return redirect(url_for(ENDPOINT_EMPRESTIMOS_ADMIN))
 
 
 # ─── Dashboard admin ───────────────────────────────────────────────────
 
-@bp.route("/admin/dashboard")
+@bp.route("/admin/dashboard", methods=["GET"])
 @role_required("admin_sistema", "admin_jogos")
 def admin_dashboard():
     db = get_db()
@@ -976,36 +1154,33 @@ def admin_dashboard():
 def perfil():
     user = current_user()
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()
-        email = (request.form.get("email") or "").strip()
+        errors = _validate_perfil_update(request.form, user["email"])
         receber_emails = 1 if request.form.get("receber_emails") == "1" else 0
-        errors = []
-        if not nome:
-            errors.append("Nome é obrigatório.")
-        if not email:
-            errors.append("Email é obrigatório.")
-        elif email != user["email"] and models.get_user_by_email(email):
-            errors.append("Email já cadastrado.")
+        telefone, whatsapp, consentimento, contact_errors = (
+            _parse_user_contact_fields(request.form)
+        )
+        errors.extend(contact_errors)
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("perfil.html", form=request.form), 400
+            return render_template(TEMPLATE_PERFIL, form=request.form), 400
 
-        data = {"nome": nome, "email": email, "receber_emails": receber_emails}
-        senha = request.form.get("senha") or ""
-        if senha:
-            if len(senha) < 4:
-                flash("Senha deve ter pelo menos 4 caracteres.", "error")
-                return render_template("perfil.html", form=request.form), 400
-            data["senha"] = senha
-
+        data = _build_perfil_update_data(
+            (request.form.get("nome") or "").strip(),
+            (request.form.get("email") or "").strip(),
+            receber_emails,
+            request.form.get("senha") or "",
+            telefone, whatsapp, consentimento,
+        )
         models.update_user(user["id"], data)
         flash("Perfil atualizado.", "success")
-        return redirect(url_for("games.perfil"))
-    return render_template("perfil.html", form=dict(user))
+        return redirect(url_for(ENDPOINT_PERFIL))
+    form = dict(user)
+    form["telefone_ddd"], form["telefone_numero"] = _split_telefone(form.get("telefone"))
+    return render_template(TEMPLATE_PERFIL, form=form)
 
 
-@bp.route("/media/<path:filename>")
+@bp.route("/media/<path:filename>", methods=["GET"])
 def media(filename):
     data_dir = current_app.config["DATA_DIR"]
     return send_from_directory(data_dir, filename)
