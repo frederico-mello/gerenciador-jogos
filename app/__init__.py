@@ -49,6 +49,11 @@ def create_app(test_config=None):
 
     Path(app.config["DATA_DIR"]).mkdir(parents=True, exist_ok=True)
 
+    # Migra o schema automaticamente no boot (idempotente): cria o banco se
+    # não existir e aplica migrações condicionais (ADD COLUMN, FKs com
+    # ON DELETE CASCADE) sem passo manual no deploy.
+    db.init_db(app.config["DATABASE_PATH"])
+
     db.init_app(app)
     csrf.init_app(app)
 
