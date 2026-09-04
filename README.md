@@ -29,6 +29,8 @@ FLASK_SECRET_KEY=seu-token-hex-aqui
 
 ### Inicializar banco
 
+O schema é criado/migrado **automaticamente no boot** da aplicação (`create_app()` chama `init_db` de forma idempotente). O script abaixo permanece disponível para uso ad-hoc (ex.: recriar o banco manualmente):
+
 ```powershell
 python scripts\init_db.py
 ```
@@ -186,7 +188,7 @@ cd /opt/gerenciador-jogos
 # Criar admin inicial (interactive)
 ./scripts/run-as-app.sh scripts/create_admin.py
 
-# Inicializar banco vazio
+# Inicializar banco vazio (opcional: o boot já migra o schema automaticamente)
 ./scripts/run-as-app.sh scripts/init_db.py
 
 # Importar jogos do diretório de Downloads

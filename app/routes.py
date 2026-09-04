@@ -15,7 +15,7 @@ from . import models
 from .models import GameHasActiveLoansError
 from .auth import login_required, role_required, current_user
 from .importer import slugify, resize_image
-from .db import init_db, get_db
+from .db import get_db
 
 bp = Blueprint("games", __name__)
 

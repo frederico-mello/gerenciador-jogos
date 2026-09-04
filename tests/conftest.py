@@ -1,7 +1,6 @@
 import pytest
 
 from app import create_app
-from app.db import init_db
 
 TEST_PASSWORD = "123"  # NOSONAR: test-only password for deterministic assertions
 
@@ -11,7 +10,7 @@ def app(tmp_path):
     db_path = tmp_path / "jogos.db"
     data_dir = tmp_path / "data"
 
-    app = create_app(
+    flask_app = create_app(
         {
             "DATABASE_PATH": str(db_path),
             "DATA_DIR": str(data_dir),
@@ -21,12 +20,10 @@ def app(tmp_path):
         }
     )
 
-    # `init_db` precisa gravar o schema em um arquivo físico, pois abre
-    # novas conexões; por isso não usamos `:memory:`.
-    with app.app_context():
-        init_db(app.config["DATABASE_PATH"])
-
-    return app
+    # O schema é criado/migrado pelo próprio create_app() no boot
+    # (auto-migrate-on-boot); o banco é um arquivo físico em tmp_path,
+    # pois init_db abre conexões próprias (não usa :memory:).
+    return flask_app
 
 
 @pytest.fixture()
