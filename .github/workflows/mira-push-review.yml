@@ -1,0 +1,34 @@
+# Mira Push Review — revisa commits diretos na branch default.
+#
+# O workflow de PR nao ve commits empurrados direto para main. Este ve: revisa o
+# diff do push via `mira review --stdin` (barato) e publica o resultado numa
+# issue. Nao bloqueia o push — ele ja aconteceu.
+#
+# Logica compartilhada em:
+#   frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@main
+#
+# Requer o secret OPENCODE_GO_API_KEY e permissao issues: write.
+
+name: Mira Push Review
+
+on:
+  push:
+    # A branch default, nao "main" fixo: o repo `ods` usa `master`, e hardcodar
+    # main deixaria o push sem review la silenciosamente.
+    branches:
+      - ${{ github.event.repository.default_branch }}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mira-push-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  push-review:
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@main
+    secrets:
+      OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
