@@ -21,12 +21,31 @@ permissions:
   pull-requests: write
   issues: write
 
+# The concurrency group splits bot-triggered runs from real ones. Mira posts a
+# placeholder comment as github-actions[bot] while its own review runs; that
+# comment fires issue_comment, and measured on this fleet the resulting run
+# joined the SAME group and cancelled the in-flight review. Job-level `if` does
+# not help: concurrency is decided when the run is created, before any job is
+# evaluated, so a filtered-out run still evicts the running one. Giving bots
+# their own group makes those runs harmless no-ops while keeping
+# cancel-in-progress for genuine reviews.
 concurrency:
-  group: mira-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: mira-${{ github.event.comment.user.type == 'Bot' && 'bot' || 'review' }}-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   mira:
+    # Gate BEFORE the job is created. Without this, the placeholder comment Mira
+    # itself posts (as github-actions[bot]) fires the issue_comment trigger, and
+    # that run joins the same concurrency group as the in-flight pull_request
+    # review — with cancel-in-progress it cancels the very review it belongs to.
+    # Require a human commenter and the mention, so bot chatter is a no-op.
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.comment.user.type != 'Bot' &&
+       contains(github.event.comment.body, '@mira-review'))
     uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
