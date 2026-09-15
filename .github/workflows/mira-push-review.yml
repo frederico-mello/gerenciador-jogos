@@ -13,10 +13,13 @@ name: Mira Push Review
 
 on:
   push:
-    # A branch default, nao "main" fixo: o repo `ods` usa `master`, e hardcodar
-    # main deixaria o push sem review la silenciosamente.
+    # Lista explicita. NAO usar ${{ github.event.repository.default_branch }}:
+    # o filtro de trigger e avaliado ANTES de qualquer contexto existir, entao
+    # uma expressao ali e rejeitada e o workflow nao inicia (run fica com ZERO
+    # jobs, sem log — parece bug de infraestrutura). Cobre main e master.
     branches:
-      - ${{ github.event.repository.default_branch }}
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
