@@ -1,0 +1,16 @@
+# .mira.yaml — per-repo review tuning for Mira in CI.
+#
+# The CI reusable workflow already supplies the endpoint, credential, model,
+# and its own filter/review defaults. This file is merged OVER them, so list
+# only what this repo changes. Endpoint/credential keys (llm.base_url,
+# llm.api_key_env) are deliberately ignored if set here.
+#
+# Everything below is optional; delete the file and the workflow defaults apply.
+
+filter:
+  max_comments: 5
+
+review:
+  walkthrough: true
+  include_summary: true
+  context_lines: 5
