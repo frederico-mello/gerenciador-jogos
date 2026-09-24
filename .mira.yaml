@@ -10,6 +10,14 @@
 filter:
   max_comments: 5
 
+# O gate do CI falha com status=partial (chunk do diff respondido em prosa).
+# O minimax-m3 descartou 1 chunk em 2 runs seguidas deste PR (run 36012771256);
+# qwen3.8-flash é da família distinta do implementador (regra do workflow) e
+# respeita o formato tool_choice. O fallback-model do workflow (qwen3.8-flash)
+# continua valendo para o modelo primário de review.
+llm:
+  review_model: qwen3.8-flash
+
 review:
   walkthrough: true
   include_summary: true
