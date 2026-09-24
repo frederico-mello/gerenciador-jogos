@@ -103,7 +103,7 @@
                 </form>
               {% endif %}
               {% if loan.status not in ('devolvido', 'cancelado') %}
-                <form method="post" action="{{ url_for('games.cancelar_emprestimo_admin', loan_id=loan.id) }}" style="display:inline" onsubmit="return confirm('Cancelar este empréstimo?')">
+                <form method="post" action="{{ url_for('games.cancelar_emprestimo_admin', loan_id=loan.id) }}" style="display:inline" data-confirm="Cancelar este empréstimo?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                   <input type="text" name="observacao" placeholder="Motivo (opcional)" style="width:120px" />
                   <button type="submit" class="btn btn-sm btn-danger">Cancelar</button>

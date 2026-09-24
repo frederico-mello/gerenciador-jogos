@@ -66,11 +66,15 @@ class TestModalExclusao:
         assert 'id="delete-modal"' in html
         assert 'id="delete-modal" hidden' not in html
         assert 'id="delete-modal" aria-modal' in html
-        # handlers usam APIs nativas e não manipulam hidden
-        assert "modal.showModal()" in html
-        assert "modal.close()" in html
-        assert "removeAttribute('hidden')" not in html
-        assert "setAttribute('hidden'" not in html
+        # handlers usam APIs nativas e não manipulam hidden; o JS hoje vive
+        # no arquivo externo app/static/js/app.js (change fix-csp-inline-js)
+        assert 'data-modal-open="delete-modal"' in html
+        assert "data-modal-close" in html
+        app_js = (Path(app.root_path) / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        assert "showModal()" in app_js
+        assert "close()" in app_js
+        assert "removeAttribute('hidden')" not in app_js
+        assert "setAttribute('hidden'" not in app_js
 
     def test_excluir_rota_continua(self, admin_client, app):
         gid = _create_game_with_uploads(admin_client)

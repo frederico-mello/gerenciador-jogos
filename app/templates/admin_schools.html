@@ -6,7 +6,7 @@
 <div class="toolbar">
   <form class="filters" method="get" action="{{ url_for('games.admin_schools') }}">
     <label for="rede-filter" class="visually-hidden">Filtrar por rede</label>
-    <select id="rede-filter" name="rede" onchange="this.form.submit()">
+    <select id="rede-filter" name="rede" data-autosubmit>
       <option value="">Todas as redes</option>
       <option value="federal" {% if rede == 'federal' %}selected{% endif %}>Federal</option>
       <option value="estadual" {% if rede == 'estadual' %}selected{% endif %}>Estadual</option>
