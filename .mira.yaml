@@ -19,6 +19,8 @@ llm:
   review_model: qwen3.8-flash
 
 review:
-  walkthrough: true
+  # walkthrough false: minimax-m3 degrada tool-call→prose quando o prompt exige
+  # muito output (walkthrough extenso + diff grande) — ver skill mira-code-review.
+  walkthrough: false
   include_summary: true
   context_lines: 5
