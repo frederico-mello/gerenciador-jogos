@@ -130,29 +130,4 @@
 {% block scripts %}
 <link rel="stylesheet" href="{{ static_v('vendor/easymde.min.css') }}" />
 <script src="{{ static_v('vendor/easymde.min.js') }}"></script>
-<script>
-  new EasyMDE({
-    element: document.getElementById('descricao'),
-    spellChecker: false,
-    status: false,
-    minHeight: '200px',
-    toolbar: [
-      'bold',
-      'italic',
-      'heading',
-      '|',
-      'unordered-list',
-      'ordered-list',
-      '|',
-      'quote',
-      'link',
-      'image',
-      '|',
-      'preview',
-      'side-by-side',
-      'fullscreen',
-      'guide'
-    ]
-  });
-</script>
 {% endblock %}
