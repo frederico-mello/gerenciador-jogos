@@ -93,6 +93,8 @@ class TestPaginasRenderizadasSemJsInline:
         assert "js/app.js?v=" in html
 
     def test_detalhe_sem_js_inline(self, admin_client, app):
+        """detail.html renderizado fica limpo E o wiring data-* do modal
+        resolve (data-modal-open aponta para um id existente de <dialog>)."""
         gid = _create_game(app)
         path = f"/{gid}"
         resp = admin_client.get(path)
@@ -100,6 +102,11 @@ class TestPaginasRenderizadasSemJsInline:
         html = resp.get_data(as_text=True)
         _assert_no_inline_js(html, path)
         assert "js/app.js?v=" in html
+        # wiring positivo do modal de exclusao (o contracto que faz o botao
+        # Excluir funcionar): botao -> id do dialog -> botao de fechar
+        assert 'data-modal-open="delete-modal"' in html
+        assert 'id="delete-modal"' in html
+        assert "data-modal-close" in html
 
     def test_editar_sem_js_inline(self, admin_client, app):
         """form.html renderizado via rota de edição também fica limpo."""
@@ -130,15 +137,17 @@ class TestAppJsServidoComoEstatico:
 
 class TestArquivosDeTemplateSemHandlersInline:
     def test_templates_sem_on_evento(self):
-        """Varre os arquivos .html por on<evento>= (fora de comentários Jinja),
-        cobrindo também rotas não renderizadas no teste acima."""
+        """Varre os arquivos .html (recursivo) por on<evento>= E <script> sem
+        src (fora de comentários Jinja), cobrindo também rotas não
+        renderizadas no teste acima."""
         offenders = []
         for tpl in sorted(TEMPLATES_DIR.rglob("*.html")):
             text = JINJA_COMMENT_RE.sub("", tpl.read_text(encoding="utf-8"))
-            m = RAW_EVENT_ATTR_RE.search(text)
-            if m:
-                offenders.append((tpl.name, _context(text, m)))
-        assert not offenders, f"handlers inline em templates: {offenders}"
+            for regex in (RAW_EVENT_ATTR_RE, INLINE_SCRIPT_RE):
+                m = regex.search(text)
+                if m:
+                    offenders.append((tpl.name, _context(text, m)))
+        assert not offenders, f"JS inline em templates: {offenders}"
 
 
 class TestDetectorSintetico:
