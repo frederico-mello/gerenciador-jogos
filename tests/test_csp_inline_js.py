@@ -18,8 +18,9 @@ APP_DIR = Path(__file__).resolve().parent.parent / "app"
 TEMPLATES_DIR = APP_DIR / "templates"
 
 # Atributos de handler de evento inline bloqueados pela CSP.
+# Mesma forma ampla usada por RAW_EVENT_ATTR_RE: qualquer on<evento>= .
 EVENT_ATTR_RE = re.compile(
-    r"\son(?:click|change|submit|load|error|input|keydown)\s*=",
+    r"\son[a-z]+\s*=",
     re.IGNORECASE,
 )
 # <script> sem atributo src: casa `<script` e falha a lookahead se houver
@@ -132,7 +133,7 @@ class TestArquivosDeTemplateSemHandlersInline:
         """Varre os arquivos .html por on<evento>= (fora de comentários Jinja),
         cobrindo também rotas não renderizadas no teste acima."""
         offenders = []
-        for tpl in sorted(TEMPLATES_DIR.glob("*.html")):
+        for tpl in sorted(TEMPLATES_DIR.rglob("*.html")):
             text = JINJA_COMMENT_RE.sub("", tpl.read_text(encoding="utf-8"))
             m = RAW_EVENT_ATTR_RE.search(text)
             if m:
