@@ -128,8 +128,8 @@
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde.min.css') }}" />
-<script src="{{ url_for('static', filename='vendor/easymde.min.js') }}"></script>
+<link rel="stylesheet" href="{{ static_v('vendor/easymde.min.css') }}" />
+<script src="{{ static_v('vendor/easymde.min.js') }}"></script>
 <script>
   new EasyMDE({
     element: document.getElementById('descricao'),
