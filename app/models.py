@@ -89,7 +89,11 @@ def list_manual_pages(game_id):
 
 
 def set_manual_pages(game_id, paths):
-    """Substitui todas as páginas de manual de um jogo por `paths`."""
+    """Substitui todas as páginas de manual de um jogo por `paths`.
+
+    A transação é persistida com commit explícito, espelhando os demais
+    writers (create_game/update_game/delete_game).
+    """
     db = get_db()
     db.execute("DELETE FROM game_manual_pages WHERE game_id = ?", (game_id,))
     for ordem, path in enumerate(paths or [], start=1):
@@ -97,6 +101,32 @@ def set_manual_pages(game_id, paths):
             "INSERT INTO game_manual_pages (game_id, ordem, path) VALUES (?, ?, ?)",
             (game_id, ordem, path),
         )
+    db.commit()
+
+
+def migrate_game_media_paths(game_id, old_area, old_slug, new_area, new_slug):
+    """Reescreve o prefixo dos paths de mídia de um jogo após rename/área.
+
+    Substitui `<old_area>/<old_slug>/` por `<new_area>/<new_slug>/` em
+    `games.imagem_componentes`, `games.imagem_perfil` e
+    `game_manual_pages.path`, e faz commit. Paths que não casam com o
+    prefixo antigo permanecem inalterados.
+    """
+    old_prefix = f"{old_area}/{old_slug}/"
+    new_prefix = f"{new_area}/{new_slug}/"
+    db = get_db()
+    db.execute(
+        """UPDATE games SET
+           imagem_componentes = REPLACE(imagem_componentes, ?, ?),
+           imagem_perfil = REPLACE(imagem_perfil, ?, ?)
+           WHERE id = ?""",
+        (old_prefix, new_prefix, old_prefix, new_prefix, game_id),
+    )
+    db.execute(
+        "UPDATE game_manual_pages SET path = REPLACE(path, ?, ?) WHERE game_id = ?",
+        (old_prefix, new_prefix, game_id),
+    )
+    db.commit()
 
 
 def create_game(data):

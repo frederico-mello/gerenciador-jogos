@@ -39,7 +39,7 @@
       {% for game in games %}
         <a class="card" href="{{ url_for('games.detalhe', game_id=game.id) }}">
           {% if game.imagem_perfil %}
-            <img src="{{ url_for('games.media', filename=game.imagem_perfil) }}" alt="{{ game.nome }}" class="card-thumb" />
+            <img src="{{ url_for('games.media', filename=game.imagem_perfil, v=game.updated_at) }}" alt="{{ game.nome }}" class="card-thumb" />
           {% else %}
             <div class="card-thumb placeholder">Sem imagem</div>
           {% endif %}
