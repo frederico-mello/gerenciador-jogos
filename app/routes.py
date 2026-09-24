@@ -1,6 +1,7 @@
 """Rotas Flask para o gerenciador de jogos."""
 
 import hashlib
+import re
 import shutil
 from pathlib import Path
 
@@ -338,6 +339,35 @@ def _remove_game_files(area, slug):
         shutil.rmtree(target)
 
 
+def _migrate_game_files(old_dir, new_dir):
+    """Move o conteúdo de `old_dir` para `new_dir`, preservando os arquivos.
+
+    Usado quando o slug ou a área de um jogo muda (rename): as mídias
+    existentes são movidas para a pasta nova em vez de removidas. Arquivos
+    já presentes no destino (uploads novos) não são sobrescritos e ficam
+    para trás, sendo descartados junto com a pasta antiga (que deixa de
+    existir após a migração).
+    """
+    if not old_dir.exists():
+        return
+    new_dir.mkdir(parents=True, exist_ok=True)
+    for item in old_dir.iterdir():
+        dest = new_dir / item.name
+        if not dest.exists():
+            shutil.move(str(item), str(dest))
+    shutil.rmtree(old_dir, ignore_errors=True)
+
+
+def _remove_excess_manual_pages(dir_path, keep):
+    """Remove manual_<n>.jpg com n > keep do diretório (re-upload menor)."""
+    if not dir_path.exists():
+        return
+    for f in dir_path.glob("manual_*.jpg"):
+        match = re.match(r"manual_(\d+)\.jpg", f.name)
+        if match and int(match.group(1)) > keep:
+            f.unlink()
+
+
 def _validate_game_form(form):
     errors = []
     nome = (form.get("nome") or "").strip()
@@ -438,7 +468,7 @@ def detalhe(game_id):
     pages = models.list_manual_pages(game_id)
     descricao_html = ""
     if game["descricao"]:
-        descricao_html = markdown.markdown(game["descricao"], extensions=["extra"])
+        descricao_html = markdown.markdown(game["descricao"], extensions=["extra", "nl2br"])
         descricao_html = bleach.clean(descricao_html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
     status, loan_id = models.get_game_availability(game_id)
     loan_history = []
@@ -461,6 +491,9 @@ def editar(game_id):
     game = models.get_game(game_id)
     if not game:
         abort(404)
+
+    old_area = game["area"]
+    old_slug = slugify(game["nome"])
 
     if request.method == "POST":
         errors = _validate_game_form(request.form)
@@ -486,8 +519,26 @@ def editar(game_id):
         manual_paths = _save_manual_uploads(manual_files, area, slug) if any(f and f.filename for f in manual_files) else None
 
         models.update_game(game_id, data)
+
+        # Migração de mídias quando o slug ou a área mudam: move a pasta
+        # antiga para a nova (preservando as imagens existentes) e reescreve
+        # o prefixo dos paths no banco, antes da limpeza de excedentes.
+        if (area, slug) != (old_area, old_slug):
+            _migrate_game_files(
+                Path(current_app.config["DATA_DIR"]) / old_area / old_slug,
+                Path(current_app.config["DATA_DIR"]) / area / slug,
+            )
+            models.migrate_game_media_paths(game_id, old_area, old_slug, area, slug)
+
+        # Re-upload de manual: remove do disco as páginas excedentes
+        # (manual_<n>.jpg com n > len(manual_paths)) e persiste as novas.
         if manual_paths is not None:
+            _remove_excess_manual_pages(
+                Path(current_app.config["DATA_DIR"]) / area / slug,
+                keep=len(manual_paths),
+            )
             models.set_manual_pages(game_id, manual_paths)
+
         flash(f"Jogo '{data['nome']}' atualizado.", "success")
         return redirect(url_for("games.detalhe", game_id=game_id))
 

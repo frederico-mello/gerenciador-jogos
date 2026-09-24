@@ -44,14 +44,14 @@
       {% if game.imagem_componentes %}
         <div class="media-block">
           <h2 class="section-title">Componentes</h2>
-          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_componentes) }}" alt="Componentes" />
+          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_componentes, v=game.updated_at) }}" alt="Componentes" />
         </div>
       {% endif %}
 
       {% if game.imagem_perfil %}
         <div class="media-block">
           <h2 class="section-title">Perfil</h2>
-          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_perfil) }}" alt="Perfil" />
+          <img class="detail-image" src="{{ url_for('games.media', filename=game.imagem_perfil, v=game.updated_at) }}" alt="Perfil" />
         </div>
       {% endif %}
     </div>
@@ -64,7 +64,7 @@
           <div class="specs-grid">
             {% if game.regras_resumo %}
               <div class="spec-card">
-                <span class="spec-label">Regras (resumo)</span>
+                <span class="spec-label">Objetivo</span>
                 <span class="spec-value">{{ game.regras_resumo }}</span>
               </div>
             {% endif %}
@@ -121,7 +121,7 @@
         {% for page in pages %}
           <div class="carousel-slide{% if loop.first %} active{% endif %}">
             <img
-              src="{{ url_for('games.media', filename=page.path) }}"
+              src="{{ url_for('games.media', filename=page.path, v=game.updated_at) }}"
               alt="Manual página {{ page.ordem }}"
             />
           </div>
@@ -150,7 +150,7 @@
     </section>
   {% endif %}
 
-  <dialog class="modal-overlay" id="delete-modal" hidden aria-modal="true" aria-labelledby="delete-modal-title">
+  <dialog class="modal-overlay" id="delete-modal" aria-modal="true" aria-labelledby="delete-modal-title">
     <div class="modal">
       <h2 id="delete-modal-title">Confirmar exclusão</h2>
       <p>
@@ -172,12 +172,12 @@
   <script>
     function openModal() {
       const modal = document.getElementById('delete-modal');
-      if (modal) modal.removeAttribute('hidden');
+      if (modal) modal.showModal();
     }
 
     function closeModal() {
       const modal = document.getElementById('delete-modal');
-      if (modal) modal.setAttribute('hidden', '');
+      if (modal) modal.close();
     }
 
     (function () {
