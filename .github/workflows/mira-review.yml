@@ -1,7 +1,7 @@
 # Mira Code Review — caller.
 #
 # Review logic lives in the reusable workflow, so every repo stays in sync:
-#   frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
+#   frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@c9f84088fcbeb7120a5e970e3f2cffeff081dd44
 #
 # Needs the repo secret OPENCODE_GO_API_KEY (already configured).
 # Review behaviour is tuned in .mira.yaml at the repo root, which the reusable
@@ -48,6 +48,6 @@ jobs:
        contains(github.event.comment.body, '@mira-review'))
     with:
       block-on-blocker: true
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@c9f84088fcbeb7120a5e970e3f2cffeff081dd44
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}

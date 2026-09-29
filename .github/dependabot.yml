@@ -1,0 +1,13 @@
+# Atualiza as refs do GitHub Actions (inclui reusable workflows) via PR revisavel.
+# Sem isto, pinnar o reusable em SHA congela a versao para sempre.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
