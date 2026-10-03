@@ -48,6 +48,6 @@ jobs:
        contains(github.event.comment.body, '@mira-review'))
     with:
       block-on-blocker: true
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@c9f84088fcbeb7120a5e970e3f2cffeff081dd44
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@381f0fe4378fe80e8dccb0b78b39c57d2b53c226
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
