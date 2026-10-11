@@ -5,7 +5,7 @@
 # issue. Nao bloqueia o push — ele ja aconteceu.
 #
 # Logica compartilhada em:
-#   frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@cff4c7e30040b5885a6e5867fdbc723250734458
+#   frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@4fc711e3e5ff71fa0887c06552bfbe1c55fb5d3a
 #
 # Requer o secret OPENROUTER_API_KEY e permissao issues: write.
 
@@ -32,6 +32,6 @@ concurrency:
 
 jobs:
   push-review:
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@cff4c7e30040b5885a6e5867fdbc723250734458
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@4fc711e3e5ff71fa0887c06552bfbe1c55fb5d3a
     secrets:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
