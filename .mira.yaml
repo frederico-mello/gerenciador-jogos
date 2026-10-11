@@ -15,8 +15,10 @@ filter:
 # qwen3.8-flash é da família distinta do implementador (regra do workflow) e
 # respeita o formato tool_choice. O fallback-model do workflow (qwen3.8-flash)
 # continua valendo para o modelo primário de review.
-llm:
-  review_model: qwen3.8-flash
+# 2026-10-11: o review migrou para o OpenRouter. O modelo `qwen3.8-flash`
+# (id da era do provedor antigo) nao tem endpoints disponiveis nesta conta
+# (politica de retencao do OpenRouter). O review_model padrao do workflow
+# (minimax/minimax-m3) volta a valer; o walkthrough segue desligado aqui.
 
 review:
   # walkthrough false: minimax-m3 degrada tool-call→prose quando o prompt exige
