@@ -5,7 +5,7 @@
 # issue. Nao bloqueia o push — ele ja aconteceu.
 #
 # Logica compartilhada em:
-#   frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@442f63bcdb8517806d2328ccf1a2d4df6a94aefa
+#   frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@98c88454d53190f862bbdfebe5a0619e35d20d29
 #
 # Requer o secret OPENCODE_GO_API_KEY e permissao issues: write.
 
@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   push-review:
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@442f63bcdb8517806d2328ccf1a2d4df6a94aefa
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@98c88454d53190f862bbdfebe5a0619e35d20d29
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
