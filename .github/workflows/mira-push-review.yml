@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   push-review:
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@2ff6759443a40785e960b7b0469f66db9eb495f7
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-push-review-reusable.yml@601cac9dafcce03fe2bf5996033e88cd7bc84aac
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
